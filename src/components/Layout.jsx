@@ -1,14 +1,17 @@
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
 import { SPORT_ICONS } from '../utils/helpers';
 
 const NAV_TABS = [
   { view: 'cycles',   label: 'Ciclos',   icon: '📋', action: 'GO_CYCLES'   },
   { view: 'athletes', label: 'Atletas',  icon: '👤', action: 'GO_ATHLETES' },
+  { view: 'studio',   label: 'Studio',   icon: '✨', action: 'GO_STUDIO'   },
   { view: 'settings', label: 'Config.',  icon: '⚙️', action: 'GO_SETTINGS' },
 ];
 
 export default function Layout({ children }) {
   const { state, dispatch, selected } = useApp();
+  const { signOut, session } = useAuth();
 
   const inCyclesSection   = ['cycles', 'cycle', 'variant', 'week'].includes(state.view);
   const inAthletesSection = ['athletes', 'athlete', 'prescription'].includes(state.view);
@@ -17,6 +20,7 @@ export default function Layout({ children }) {
   function isTabActive(tab) {
     if (tab.view === 'cycles')   return inCyclesSection;
     if (tab.view === 'athletes') return inAthletesSection;
+    if (tab.view === 'studio')   return state.view === 'studio';
     if (tab.view === 'settings') return inSettings;
     return false;
   }
@@ -112,6 +116,22 @@ export default function Layout({ children }) {
               </>
             )}
           </nav>
+
+          {/* User / logout */}
+          <div className="flex items-center gap-2 ml-4 pl-4 border-l border-blue-800">
+            {session?.user?.email && (
+              <span className="text-[11px] text-blue-300 hidden xl:block max-w-[140px] truncate">
+                {session.user.email}
+              </span>
+            )}
+            <button
+              onClick={signOut}
+              title="Sair"
+              className="text-xs text-blue-300 hover:text-white transition-colors px-2 py-1 rounded hover:bg-blue-900"
+            >
+              Sair
+            </button>
+          </div>
         </div>
       </header>
 

@@ -399,6 +399,7 @@ export default function VariantDetail() {
           workout: {
             id: uuid(), dayOfWeek: dow, period: 'manha',
             title: item.name, type: item.sport || 'corrida',
+            description: item.description || '',
             notes: item.notes || '',
             blocks: (item.blocks || []).map(b => ({ ...b, id: uuid() })),
           },

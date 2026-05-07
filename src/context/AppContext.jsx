@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect } from 'react';
+import { createContext, useContext, useReducer, useEffect, useRef, useCallback } from 'react';
 import {
   uuid,
   generateWeeks,
@@ -7,12 +7,13 @@ import {
   DEFAULT_PHASE_CONFIG,
   DEFAULT_RACE_PACE_CONFIG,
 } from '../utils/helpers';
+import { supabase } from '../lib/supabase';
 
 const AppContext = createContext(null);
-const STORAGE_KEY = 'eon_hub_v2';
+const STORAGE_KEY = 'eon_hub_v3';
 
 // ─── Navigation state ────────────────────────────────────────────────────────
-// view: 'cycles' | 'cycle' | 'variant' | 'week' | 'athletes' | 'athlete' | 'prescription' | 'settings'
+// view: 'cycles' | 'cycle' | 'variant' | 'week' | 'athletes' | 'athlete' | 'prescription' | 'settings' | 'studio'
 const initialState = {
   cycles: [],         // training plan templates
   athletes: [],       // athlete database
@@ -52,6 +53,8 @@ function reducer(state, action) {
       return { ...state, view: 'prescription', selectedPrescriptionId: action.prescriptionId };
     case 'GO_SETTINGS':
       return { ...state, view: 'settings' };
+    case 'GO_STUDIO':
+      return { ...state, view: 'studio' };
 
     // ── Cycles ───────────────────────────────────────────────────────────────
     case 'CREATE_CYCLE': {
@@ -394,40 +397,96 @@ function reducer(state, action) {
       return { ...state, anthropicApiKey: action.payload };
     }
 
+    case 'LOAD_REMOTE':
+      return { ...state, ...action.payload };
+
     default:
       return state;
   }
 }
 
+function mergeWithDefaults(saved) {
+  if (saved.phaseConfig) {
+    const existingKeys = new Set(saved.phaseConfig.map(p => p.key));
+    const missing = DEFAULT_PHASE_CONFIG.filter(p => !existingKeys.has(p.key));
+    if (missing.length > 0) saved.phaseConfig = [...saved.phaseConfig, ...missing];
+  }
+  return { ...initialState, ...saved };
+}
+
 function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return { ...initialState, ...JSON.parse(raw) };
-  } catch (error) {
-    console.warn('Nao foi possivel carregar os dados salvos do EON Hub.', error);
-  }
+    if (raw) return mergeWithDefaults(JSON.parse(raw));
+  } catch (_) {}
   return initialState;
 }
 
-export function AppProvider({ children }) {
+export function AppProvider({ children, userId }) {
   const [state, dispatch] = useReducer(reducer, null, loadState);
+  const saveTimer = useRef(null);
+
+  // Load from Supabase when userId is available
+  useEffect(() => {
+    if (!userId) return;
+    supabase
+      .from('coach_data')
+      .select('*')
+      .eq('coach_id', userId)
+      .single()
+      .then(({ data, error }) => {
+        if (error && error.code !== 'PGRST116') return; // PGRST116 = no rows
+        if (data) {
+          dispatch({ type: 'LOAD_REMOTE', payload: mergeWithDefaults({
+            cycles:          data.cycles          ?? [],
+            athletes:        data.athletes        ?? [],
+            prescriptions:   data.prescriptions   ?? [],
+            workoutLibrary:  data.workout_library  ?? [],
+            libraryFolders:  data.library_folders  ?? [],
+            zoneConfig:      data.zone_config      ?? DEFAULT_ZONE_CONFIG,
+            racePaceConfig:  data.race_pace_config ?? DEFAULT_RACE_PACE_CONFIG,
+            phaseConfig:     data.phase_config     ?? DEFAULT_PHASE_CONFIG,
+            anthropicApiKey: data.anthropic_api_key ?? '',
+          }) });
+        }
+      });
+  }, [userId]);
+
+  // Debounced save to Supabase + localStorage
+  const saveData = useCallback((s) => {
+    const payload = {
+      cycles:           s.cycles,
+      athletes:         s.athletes,
+      prescriptions:    s.prescriptions,
+      workout_library:  s.workoutLibrary,
+      library_folders:  s.libraryFolders,
+      zone_config:      s.zoneConfig,
+      race_pace_config: s.racePaceConfig,
+      phase_config:     s.phaseConfig,
+      anthropic_api_key: s.anthropicApiKey,
+    };
+
+    // Always persist locally as backup
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      cycles: s.cycles, athletes: s.athletes, prescriptions: s.prescriptions,
+      workoutLibrary: s.workoutLibrary, libraryFolders: s.libraryFolders,
+      zoneConfig: s.zoneConfig, racePaceConfig: s.racePaceConfig,
+      phaseConfig: s.phaseConfig, anthropicApiKey: s.anthropicApiKey,
+    })); } catch (_) {}
+
+    // Debounce Supabase write (1.5s)
+    if (!userId) return;
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      supabase
+        .from('coach_data')
+        .upsert({ coach_id: userId, ...payload }, { onConflict: 'coach_id' })
+        .then(({ error }) => { if (error) console.warn('Supabase save error', error); });
+    }, 1500);
+  }, [userId]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
-        cycles: state.cycles,
-        athletes: state.athletes,
-        prescriptions: state.prescriptions,
-        workoutLibrary: state.workoutLibrary,
-        libraryFolders: state.libraryFolders,
-        zoneConfig: state.zoneConfig,
-        racePaceConfig: state.racePaceConfig,
-        phaseConfig: state.phaseConfig,
-        anthropicApiKey: state.anthropicApiKey,
-      }));
-    } catch (error) {
-      console.warn('Nao foi possivel salvar os dados do EON Hub.', error);
-    }
+    saveData(state);
   }, [state.cycles, state.athletes, state.prescriptions, state.workoutLibrary, state.libraryFolders, state.zoneConfig, state.racePaceConfig, state.phaseConfig, state.anthropicApiKey]);
 
   // Helper selectors

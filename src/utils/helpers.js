@@ -110,7 +110,7 @@ function _addWithTarget({ addZ, km, zone, mode, pct, low, high, zoneConfig }) {
 // ─── 2-level block model ──────────────────────────────────────────────────────
 //
 // NEW FORMAT (sections):
-//   { id, sectionType: 'aquecimento'|'estimulos'|'transicao'|'serie_principal'|'volta_calma',
+//   { id, sectionType: 'aquecimento'|'ativacao'|'strides'|'transicao'|'serie_principal'|'volta_calma',
 //     subBlocks: [ subBlock, ... ] }
 //
 // LEGACY FORMAT (flat blocks, still supported for existing workouts):
@@ -290,8 +290,8 @@ export function migrateBlocks(blocks) {
       transition: 'transicao',
       continuous: 'serie_principal',
       interval:   'serie_principal',
-      variation:  'estimulos',
-      stimulus:   'estimulos',
+      variation:  'ativacao',
+      stimulus:   'ativacao',
       ramp:       'serie_principal',
     }[b.type] || 'serie_principal';
 
@@ -366,7 +366,9 @@ export function calcWeekStress(workouts, zoneConfig = DEFAULT_ZONE_CONFIG) {
 // ─── Section constants ────────────────────────────────────────────────────────
 export const SECTION_LABELS = {
   aquecimento:      'Aquecimento',
-  estimulos:        'Estímulos',
+  ativacao:         'Ativação',
+  estimulos:        'Ativação',   // legacy alias
+  strides:          'Strides',
   transicao:        'Transição',
   serie_principal:  'Série Principal',
   volta_calma:      'Volta à Calma',
@@ -374,7 +376,9 @@ export const SECTION_LABELS = {
 
 export const SECTION_COLORS = {
   aquecimento:      '#FB923C',
-  estimulos:        '#EF4444',
+  ativacao:         '#EF4444',
+  estimulos:        '#EF4444',   // legacy alias
+  strides:          '#10B981',
   transicao:        '#60A5FA',
   serie_principal:  '#A78BFA',
   volta_calma:      '#94A3B8',
@@ -382,7 +386,9 @@ export const SECTION_COLORS = {
 
 export const SECTION_ICONS = {
   aquecimento:      '🔥',
-  estimulos:        '⚡',
+  ativacao:         '⚡',
+  estimulos:        '⚡',   // legacy alias
+  strides:          '💨',
   transicao:        '〰️',
   serie_principal:  '🎯',
   volta_calma:      '❄️',
@@ -398,13 +404,20 @@ export function emptySection(sectionType) {
       return { id: uuid(), sectionType, subBlocks: [st('z1', '0,5')] };
     case 'volta_calma':
       return { id: uuid(), sectionType, subBlocks: [st('z0', '1')] };
-    case 'estimulos':
-      return { id: uuid(), sectionType, subBlocks: [{
+    case 'ativacao':
+    case 'estimulos':   // legacy alias
+      return { id: uuid(), sectionType: 'ativacao', subBlocks: [{
         id: uuid(), type: 'variation', repeat: 5,
         stimuli: [
           { id: uuid(), measureType: 'distance', value: '0,2', zone: 'z3', targetMode: 'zone' },
           { id: uuid(), measureType: 'distance', value: '0,2', zone: 'z4', targetMode: 'zone' },
         ],
+      }]};
+    case 'strides':
+      return { id: uuid(), sectionType, subBlocks: [{
+        id: uuid(), type: 'interval', repeat: 8,
+        workMeasure: 'distance', workValue: '0.2', workzone: 'z4', worktargetMode: 'zone',
+        restType: 'active', restMeasure: 'distance', restValue: '0.2', restzone: 'z1', restTargetMode: 'zone',
       }]};
     case 'serie_principal':
     default:
@@ -498,22 +511,22 @@ export const ZONE_COLORS = {
 export const ZONE_LABELS = {
   trote: 'Trote (47–55%)',
   z0: 'Z0 – Regenerativo (55–65%)',
-  z1: 'Z1 – Endurance Leve (65–75%)',
+  z1: 'Z1 – Aeróbico Base (65–75%)',
   z2: 'Z2 – Endurance Extensivo (75–86%)',
   z3: 'Z3 – Endurance Intensivo (86–93%)',
-  z4: 'Z4 – Limiar (93–102%)',
-  z5: 'Z5 – VO₂ (102–110%)',
+  z4: 'Z4 – Limiar (93–100%)',
+  z5: 'Z5 – VO₂ Máx (100–110%)',
   z6: 'Z6 – Potência Anaeróbia (110–130%)',
 };
 
 export const DEFAULT_ZONE_CONFIG = [
   { key: 'trote', name: 'Trote',               color: '#475569', low: 47,  high: 55  },
   { key: 'z0',    name: 'Regenerativo',         color: '#94A3B8', low: 55,  high: 65  },
-  { key: 'z1',    name: 'Endurance Leve',       color: '#60A5FA', low: 65,  high: 75  },
+  { key: 'z1',    name: 'Aeróbico Base',         color: '#60A5FA', low: 65,  high: 75  },
   { key: 'z2',    name: 'Endurance Extensivo',  color: '#34D399', low: 75,  high: 86  },
   { key: 'z3',    name: 'Endurance Intensivo',  color: '#FBBF24', low: 86,  high: 93  },
-  { key: 'z4',    name: 'Limiar',               color: '#F97316', low: 93,  high: 102 },
-  { key: 'z5',    name: 'VO2 MAX',               color: '#EF4444', low: 102, high: 110 },
+  { key: 'z4',    name: 'Limiar',               color: '#F97316', low: 93,  high: 100 },
+  { key: 'z5',    name: 'VO2 Máx',              color: '#EF4444', low: 100, high: 110 },
   { key: 'z6',    name: 'Potência Anaeróbia',   color: '#7C3AED', low: 110, high: 130 },
 ];
 
@@ -525,11 +538,13 @@ export const DEFAULT_RACE_PACE_CONFIG = [
 ];
 
 export const DEFAULT_PHASE_CONFIG = [
-  { key: 'base',        label: 'Base',           color: '#60A5FA' },
-  { key: 'prep_geral',  label: 'Prep. Geral',    color: '#A78BFA' },
-  { key: 'especifico',  label: 'Específico',     color: '#FBBF24' },
-  { key: 'polimento',   label: 'Polimento',      color: '#34D399' },
-  { key: 'prova',       label: 'Prova',          color: '#EF4444' },
+  { key: 'base',           label: 'Base',                color: '#60A5FA' },
+  { key: 'prep_geral',     label: 'Prep. Geral',         color: '#A78BFA' },
+  { key: 'especifico',     label: 'Específico',          color: '#FBBF24' },
+  { key: 'competitivo',    label: 'Período Competitivo', color: '#F97316' },
+  { key: 'polimento',      label: 'Polimento',           color: '#34D399' },
+  { key: 'prova',          label: 'Prova',               color: '#EF4444' },
+  { key: 'recuperativa',   label: 'Recuperativa',        color: '#94A3B8' },
 ];
 
 // Build color/label lookup maps from a phaseConfig array (falls back to DEFAULT_PHASE_CONFIG)

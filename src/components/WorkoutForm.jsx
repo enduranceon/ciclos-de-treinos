@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useApp } from '../context/AppContext';
 import { useConfirm } from '../context/ConfirmContext';
 import AIWorkoutBuilder from './AIWorkoutBuilder';
@@ -23,7 +23,8 @@ const SPORT_TYPES = [
 // Level-1: sections
 const SECTION_TYPES = [
   { value: 'aquecimento',     label: SECTION_LABELS.aquecimento,     color: SECTION_COLORS.aquecimento,     icon: SECTION_ICONS.aquecimento },
-  { value: 'estimulos',       label: SECTION_LABELS.estimulos,       color: SECTION_COLORS.estimulos,       icon: SECTION_ICONS.estimulos },
+  { value: 'ativacao',        label: SECTION_LABELS.ativacao,        color: SECTION_COLORS.ativacao,        icon: SECTION_ICONS.ativacao },
+  { value: 'strides',         label: SECTION_LABELS.strides,         color: SECTION_COLORS.strides,         icon: SECTION_ICONS.strides },
   { value: 'transicao',       label: SECTION_LABELS.transicao,       color: SECTION_COLORS.transicao,       icon: SECTION_ICONS.transicao },
   { value: 'serie_principal', label: SECTION_LABELS.serie_principal, color: SECTION_COLORS.serie_principal, icon: SECTION_ICONS.serie_principal },
   { value: 'volta_calma',     label: SECTION_LABELS.volta_calma,     color: SECTION_COLORS.volta_calma,     icon: SECTION_ICONS.volta_calma },
@@ -54,6 +55,15 @@ const BLOCK_COLORS = {
 
 const ZONES = ['trote','z0','z1','z2','z3','z4','z5','z6'];
 
+const PSE_LEVELS = [
+  { key: 'muito_leve',  label: 'Muito Leve',  height: 0.15, color: '#60A5FA' },
+  { key: 'leve',        label: 'Leve',         height: 0.35, color: '#34D399' },
+  { key: 'moderado',    label: 'Moderado',     height: 0.55, color: '#FBBF24' },
+  { key: 'forte',       label: 'Forte',        height: 0.75, color: '#F97316' },
+  { key: 'muito_forte', label: 'Muito Forte',  height: 0.95, color: '#EF4444' },
+];
+const PSE_MAP = Object.fromEntries(PSE_LEVELS.map(p => [p.key, p]));
+
 // ── Zone / intensity selector ─────────────────────────────────────────────────
 function ZoneSelect({ target, onChange, label }) {
   const { state } = useApp();
@@ -65,9 +75,10 @@ function ZoneSelect({ target, onChange, label }) {
   const pct        = target.pct        || '';
   const targetLow  = target.targetLow  || '';
   const targetHigh = target.targetHigh || '';
+  const pseLevel   = target.pseLevel   || 'moderado';
   const selected   = zoneMap[zone];
 
-  function upd(partial) { onChange({ zone, mode, pct, targetLow, targetHigh, ...partial }); }
+  function upd(partial) { onChange({ zone, mode, pct, targetLow, targetHigh, pseLevel, ...partial }); }
 
   function zoneForPct(raw) {
     const p = pf(raw);
@@ -79,7 +90,7 @@ function ZoneSelect({ target, onChange, label }) {
       {label && <p className="text-xs text-slate-400">{label}</p>}
       <div className="flex items-center gap-2">
         <div className="flex rounded-lg overflow-hidden border border-slate-200">
-          {[{ key: 'zone', label: 'Zona' }, { key: 'pct', label: '% Alvo' }, { key: 'range', label: 'Range' }].map(m => (
+          {[{ key: 'zone', label: 'Zona' }, { key: 'pct', label: '% Alvo' }, { key: 'range', label: 'Range' }, { key: 'pse', label: 'PSE' }].map(m => (
             <button key={m.key} type="button" onClick={() => upd({ mode: m.key })}
               className={`px-2.5 py-1 text-[11px] font-semibold transition-colors ${
                 mode === m.key ? 'bg-[#001F3F] text-white' : 'bg-white text-slate-400 hover:bg-slate-50'
@@ -143,6 +154,36 @@ function ZoneSelect({ target, onChange, label }) {
           <span className="text-xs text-slate-500 font-medium">% do limiar</span>
         </div>
       )}
+
+      {mode === 'pse' && (
+        <div>
+          <div className="flex gap-0.5">
+            {PSE_LEVELS.map(p => {
+              const isSel = pseLevel === p.key;
+              return (
+                <button key={p.key} type="button" onClick={() => upd({ pseLevel: p.key })}
+                  className="flex-1 py-1.5 rounded-lg text-[9px] font-black transition-all leading-none text-center"
+                  style={{
+                    backgroundColor: isSel ? p.color : '#F1F5F9',
+                    color: isSel ? '#fff' : '#94A3B8',
+                    outline: isSel ? `2px solid ${p.color}` : 'none',
+                    outlineOffset: '2px',
+                  }}>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+          {PSE_MAP[pseLevel] && (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: PSE_MAP[pseLevel].color }} />
+              <span className="text-xs font-semibold" style={{ color: PSE_MAP[pseLevel].color }}>{PSE_MAP[pseLevel].label}</span>
+              <span className="text-xs text-slate-300">·</span>
+              <span className="text-xs text-slate-400">Percepção Subjetiva de Esforço</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -155,6 +196,7 @@ function getTarget(obj, prefix = '') {
     pct:        obj[`${prefix}targetPct`]  || '',
     targetLow:  obj[`${prefix}targetLow`]  || '',
     targetHigh: obj[`${prefix}targetHigh`] || '',
+    pseLevel:   obj[`${prefix}pseLevel`]   || 'moderado',
   };
 }
 function mergeTarget(obj, t, prefix = '') {
@@ -165,6 +207,7 @@ function mergeTarget(obj, t, prefix = '') {
     [`${prefix}targetPct`]:  t.pct,
     [`${prefix}targetLow`]:  t.targetLow,
     [`${prefix}targetHigh`]: t.targetHigh,
+    [`${prefix}pseLevel`]:   t.pseLevel,
   };
 }
 
@@ -544,16 +587,23 @@ function ZoneDistribution({ blocks, zoneConfig }) {
 }
 
 // ── Workout chart ─────────────────────────────────────────────────────────────
-function WorkoutChart({ blocks, zoneConfig }) {
+function WorkoutChart({ blocks, zoneConfig, onSectionClick }) {
   const flat = flattenBlocks(blocks);
   if (flat.length === 0) return null;
 
   const cfg = zoneConfig || DEFAULT_ZONE_CONFIG;
   const zoneMap = Object.fromEntries(cfg.map(z => [z.key, z]));
   const maxPct = Math.max(...cfg.map(z => z.high), 130);
+  const [hoveredSeg, setHoveredSeg] = useState(null);
+  const [tooltipPos, setTooltipPos] = useState({ x: 0, y: 0 });
+  const chartRef = useRef(null);
 
   function targetHeight(obj, prefix = '') {
     const mode = obj[`${prefix}targetMode`] || 'zone';
+    if (mode === 'pse') {
+      const p = PSE_MAP[obj[`${prefix}pseLevel`] || 'moderado'];
+      return p ? p.height : 0.55;
+    }
     if (mode === 'pct') {
       const p = pf(obj[`${prefix}targetPct`]);
       return p > 0 ? p / maxPct : 0.35;
@@ -568,22 +618,41 @@ function WorkoutChart({ blocks, zoneConfig }) {
     return z ? ((z.low + z.high) / 2) / maxPct : 0.35;
   }
 
-  function targetLabel(obj, prefix = '') {
+  function zoneInfo(obj, prefix = '') {
     const mode = obj[`${prefix}targetMode`] || 'zone';
-    if (mode === 'pct') return `${obj[`${prefix}targetPct`] || '?'}% do limiar`;
-    if (mode === 'range') return `${obj[`${prefix}targetLow`] || '?'}–${obj[`${prefix}targetHigh`] || '?'}% do limiar`;
+    if (mode === 'pse') {
+      const p = PSE_MAP[obj[`${prefix}pseLevel`] || 'moderado'];
+      return p ? { label: p.label, key: 'PSE', range: null, color: p.color } : { label: 'PSE', range: null };
+    }
+    if (mode === 'pct') return { label: `${obj[`${prefix}targetPct`] || '?'}% do limiar`, range: null };
+    if (mode === 'range') {
+      const lo = obj[`${prefix}targetLow`] || '?';
+      const hi = obj[`${prefix}targetHigh`] || '?';
+      return { label: `${lo}–${hi}% do limiar`, range: null };
+    }
     const key = obj[`${prefix}zone`] || 'z1';
     const z = zoneMap[key];
-    return z ? `${z.name}: ${z.low}–${z.high}%` : key;
+    return z
+      ? { label: z.name, key: key.toUpperCase(), range: `${z.low}–${z.high}%` }
+      : { label: key, range: null };
+  }
+
+  function fmtVal(v, measure) {
+    const n = pf(v);
+    if (!n) return '';
+    if (measure === 'distance') {
+      return n < 1 ? `${Math.round(n * 1000)}m` : `${n}km`;
+    }
+    return `${n}min`;
   }
 
   const CHART_H = 80;
   const thresholdPos = 1 - (100 / maxPct);
   const segments = [];
 
-  function push(size, height, color, tooltip) {
+  function push(size, height, color, info, sectionIndex) {
     if (size <= 0) return;
-    segments.push({ size, height, color, tooltip });
+    segments.push({ size, height, color, sectionIndex, ...info });
   }
 
   function parseVal(v, measure) {
@@ -591,35 +660,100 @@ function WorkoutChart({ blocks, zoneConfig }) {
     return measure === 'distance' ? n : n * 0.08;
   }
 
-  for (const b of flat) {
-    const color = BLOCK_COLORS[b.type] || '#94A3B8';
-    if (['warmup','continuous','transition','cooldown'].includes(b.type)) {
-      push(parseVal(b.value, b.measureType) || 0.5, targetHeight(b), color, targetLabel(b));
-    } else if (b.type === 'interval') {
-      const rep = Math.min(parseInt(b.repeat) || 1, 14);
-      const wSize = parseVal(b.workValue, b.workMeasure) || 0.4;
-      const rSize = b.restType === 'active'
-        ? parseVal(b.restValue, b.restMeasure) || 0.15
-        : Math.max((parseFloat(String(b.restValue).split(':')[0] || b.restValue) || 2) * 0.04, 0.08);
-      for (let i = 0; i < rep; i++) {
-        push(wSize, targetHeight(b, 'work'), color, targetLabel(b, 'work'));
-        const restH = b.restType === 'active' ? targetHeight(b, 'rest') : (zoneMap['z0'] ? ((zoneMap['z0'].low + zoneMap['z0'].high) / 2) / maxPct : 0.2);
-        push(rSize, restH, '#CBD5E1', 'Descanso');
+  for (let si = 0; si < (blocks || []).length; si++) {
+    const section = blocks[si];
+    const sectionLabel = SECTION_LABELS[section.sectionType] || section.sectionType || '';
+    const sectionColor = SECTION_COLORS[section.sectionType] || '#94A3B8';
+    const subBlocks = section.sectionType !== undefined ? (section.subBlocks || []) : [section];
+
+    for (const b of subBlocks) {
+      const baseColor = BLOCK_COLORS[b.type] || '#94A3B8';
+      function blockColor(mode, pseLevel) {
+        return mode === 'pse' ? (PSE_MAP[pseLevel || 'moderado']?.color || baseColor) : baseColor;
       }
-    } else if (['variation','stimulus'].includes(b.type)) {
-      const rep = Math.min(parseInt(b.repeat) || 1, 10);
-      for (let i = 0; i < rep; i++)
-        for (const st of (b.stimuli || []))
-          push(parseVal(st.value, st.measureType) || 0.25, targetHeight(st), color, targetLabel(st));
-    } else if (b.type === 'ramp') {
-      const rep = Math.min(parseInt(b.repeat) || 1, 6);
-      for (let i = 0; i < rep; i++)
-        for (const st of (b.steps || []))
-          push(parseVal(st.value, st.measureType) || 0.25, targetHeight(st), color, targetLabel(st));
+
+      if (['warmup','continuous','transition','cooldown'].includes(b.type)) {
+        const color = blockColor(b.targetMode, b.pseLevel);
+        const zi = zoneInfo(b);
+        push(parseVal(b.value, b.measureType) || 0.5, targetHeight(b), color, {
+          sectionLabel, sectionColor,
+          blockLine: `Contínuo · ${fmtVal(b.value, b.measureType)}`,
+          zoneLine: b.targetMode === 'pse' ? `PSE — ${zi.label}` : (zi.range ? `${zi.key} — ${zi.label} (${zi.range})` : zi.label),
+          isRest: false,
+        }, si);
+
+      } else if (b.type === 'interval') {
+        const totalRep = parseInt(b.repeat) || 1;
+        const rep = Math.min(totalRep, 14);
+        const wSize = parseVal(b.workValue, b.workMeasure) || 0.4;
+        const rSize = b.restType === 'active'
+          ? parseVal(b.restValue, b.restMeasure) || 0.15
+          : Math.max((parseFloat(String(b.restValue).split(':')[0] || b.restValue) || 2) * 0.04, 0.08);
+        const wColor = blockColor(b.worktargetMode, b.workpseLevel);
+        const wzi = zoneInfo(b, 'work');
+        const rzi = b.restType === 'active' ? zoneInfo(b, 'rest') : null;
+        const restLine = b.restType === 'active'
+          ? `Descanso ativo · ${fmtVal(b.restValue, b.restMeasure)}${rzi ? ` · ${rzi.key || rzi.label}` : ''}`
+          : `Descanso passivo · ${b.restValue ? `${b.restValue}min` : '—'}`;
+
+        for (let i = 0; i < rep; i++) {
+          push(wSize, targetHeight(b, 'work'), wColor, {
+            sectionLabel, sectionColor,
+            blockLine: `Intervalado · ${totalRep}× ${fmtVal(b.workValue, b.workMeasure)}`,
+            zoneLine: wzi.range ? `${wzi.key} — ${wzi.label} (${wzi.range})` : `PSE — ${wzi.label}`,
+            repLine: `Rep ${i + 1} de ${totalRep}`,
+            isRest: false,
+          }, si);
+          const restH = b.restType === 'active' ? targetHeight(b, 'rest') : (zoneMap['z0'] ? ((zoneMap['z0'].low + zoneMap['z0'].high) / 2) / maxPct : 0.2);
+          push(rSize, restH, '#CBD5E1', {
+            sectionLabel, sectionColor,
+            blockLine: restLine,
+            zoneLine: null,
+            isRest: true,
+          }, si);
+        }
+
+      } else if (['variation','stimulus'].includes(b.type)) {
+        const totalRep = parseInt(b.repeat) || 1;
+        const rep = Math.min(totalRep, 10);
+        for (let i = 0; i < rep; i++)
+          for (const st of (b.stimuli || [])) {
+            const stColor = blockColor(st.targetMode, st.pseLevel);
+            const zi = zoneInfo(st);
+            push(parseVal(st.value, st.measureType) || 0.25, targetHeight(st), stColor, {
+              sectionLabel, sectionColor,
+              blockLine: `Variação · ${totalRep}× [${fmtVal(st.value, st.measureType)}]`,
+              zoneLine: zi.range ? `${zi.key} — ${zi.label} (${zi.range})` : zi.label,
+              repLine: `Rep ${i + 1} de ${totalRep}`,
+              isRest: false,
+            }, si);
+          }
+
+      } else if (b.type === 'ramp') {
+        const totalRep = parseInt(b.repeat) || 1;
+        const rep = Math.min(totalRep, 6);
+        for (let i = 0; i < rep; i++)
+          for (const st of (b.steps || [])) {
+            const zi = zoneInfo(st);
+            push(parseVal(st.value, st.measureType) || 0.25, targetHeight(st), color, {
+              sectionLabel, sectionColor,
+              blockLine: `Rampa · ${fmtVal(st.value, st.measureType)}`,
+              zoneLine: zi.range ? `${zi.key} — ${zi.label} (${zi.range})` : zi.label,
+              isRest: false,
+            }, si);
+          }
+      }
     }
   }
 
   if (segments.length === 0) return null;
+
+  function handleMouseMove(e, seg) {
+    if (!chartRef.current) return;
+    const rect = chartRef.current.getBoundingClientRect();
+    setTooltipPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    setHoveredSeg(seg);
+  }
 
   return (
     <div className="px-6 pb-3 flex-shrink-0">
@@ -629,23 +763,56 @@ function WorkoutChart({ blocks, zoneConfig }) {
           <span className="text-[9px] text-blue-300/60 font-mono">100%</span>
           <span className="text-[9px] text-blue-400/50 font-mono">0</span>
         </div>
-        <div className="flex-1 bg-[#0D1B2A] rounded-xl px-4 pt-3 pb-0 overflow-hidden relative" style={{ height: `${CHART_H + 20}px` }}>
+        <div ref={chartRef} className="flex-1 bg-[#0D1B2A] rounded-xl px-4 pt-3 pb-0 overflow-visible relative" style={{ height: `${CHART_H + 20}px` }}>
           <div className="absolute left-4 right-4 h-px border-t border-dashed border-blue-400/40 z-10"
             style={{ top: `${thresholdPos * CHART_H + 12}px` }} />
           <span className="absolute right-4 text-[8px] text-blue-400/50 font-mono z-10"
             style={{ top: `${thresholdPos * CHART_H + 4}px` }}>limiar</span>
+
           <div className="flex items-end gap-px w-full" style={{ height: `${CHART_H}px` }}>
             {segments.map((seg, i) => (
-              <div key={i} className="rounded-t-sm transition-opacity hover:opacity-80"
+              <div key={i}
+                className={`rounded-t-sm transition-all${onSectionClick && seg.sectionIndex != null ? ' cursor-pointer' : ''}`}
                 style={{
                   flexGrow: seg.size, flexShrink: 1, flexBasis: 0, minWidth: 0,
                   height: `${seg.height * 100}%`,
                   backgroundColor: seg.color,
-                  opacity: seg.color === '#CBD5E1' ? 0.4 : 1,
+                  opacity: hoveredSeg && hoveredSeg !== seg ? (seg.sectionIndex === hoveredSeg?.sectionIndex ? 0.85 : 0.4) : (seg.color === '#CBD5E1' ? 0.4 : 1),
+                  outline: hoveredSeg === seg ? '2px solid rgba(255,255,255,0.6)' : 'none',
                 }}
-                title={seg.tooltip} />
+                onMouseMove={e => handleMouseMove(e, seg)}
+                onMouseLeave={() => setHoveredSeg(null)}
+                onClick={onSectionClick && seg.sectionIndex != null ? () => onSectionClick(seg.sectionIndex) : undefined}
+              />
             ))}
           </div>
+
+          {/* Custom tooltip */}
+          {hoveredSeg && (
+            <div
+              className="absolute z-50 pointer-events-none"
+              style={{
+                left: tooltipPos.x + 12,
+                top: tooltipPos.y - 10,
+                transform: tooltipPos.x > 200 ? 'translateX(-100%) translateX(-24px)' : undefined,
+              }}
+            >
+              <div className="bg-[#0D1B2A] border border-white/10 rounded-xl px-3 py-2 shadow-xl min-w-[170px]">
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: hoveredSeg.sectionColor }} />
+                  <span className="text-[10px] font-bold text-white/50 uppercase tracking-widest">{hoveredSeg.sectionLabel}</span>
+                </div>
+                <p className="text-[11px] font-semibold text-white leading-snug">{hoveredSeg.blockLine}</p>
+                {hoveredSeg.zoneLine && (
+                  <p className="text-[10px] text-blue-300 mt-0.5">{hoveredSeg.zoneLine}</p>
+                )}
+                {hoveredSeg.repLine && (
+                  <p className="text-[9px] text-white/30 mt-1">{hoveredSeg.repLine}</p>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="h-px bg-blue-700/50" />
           <div className="flex justify-between mt-1 pb-1">
             <span className="text-blue-500/60 font-mono" style={{ fontSize: '8px' }}>início</span>
@@ -684,6 +851,14 @@ export default function WorkoutForm({ onClose, workout, cycleId, variantId, week
   const [showLibrary, setShowLibrary] = useState(false);
   const [showAI, setShowAI] = useState(false);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const sectionRefs = useRef([]);
+  const scrollToSection = useCallback((idx) => {
+    setTab('structure');
+    setTimeout(() => {
+      sectionRefs.current[idx]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }, 50);
+  }, []);
 
   function handleMove(dir, idx) {
     const arr = [...form.blocks];
@@ -806,7 +981,7 @@ export default function WorkoutForm({ onClose, workout, cycleId, variantId, week
           </div>
 
           {/* ── Chart ────────────────────────────────────────────────────── */}
-          <WorkoutChart blocks={effectiveBlocks} zoneConfig={state.zoneConfig} />
+          <WorkoutChart blocks={effectiveBlocks} zoneConfig={state.zoneConfig} onSectionClick={scrollToSection} />
 
           {/* ── Tabs ─────────────────────────────────────────────────────── */}
           <div className="flex border-b border-slate-100 px-6 flex-shrink-0">
@@ -839,15 +1014,16 @@ export default function WorkoutForm({ onClose, workout, cycleId, variantId, week
                   <>
                     {/* Sections */}
                     {form.blocks.map((section, idx) => (
-                      <SectionEditor
-                        key={section.id}
-                        section={section}
-                        sectionIndex={idx}
-                        totalSections={form.blocks.length}
-                        onChange={updated => set('blocks', form.blocks.map((b, i) => i === idx ? updated : b))}
-                        onRemove={() => set('blocks', form.blocks.filter((_, i) => i !== idx))}
-                        onMove={handleMove}
-                      />
+                      <div key={section.id} ref={el => sectionRefs.current[idx] = el}>
+                        <SectionEditor
+                          section={section}
+                          sectionIndex={idx}
+                          totalSections={form.blocks.length}
+                          onChange={updated => set('blocks', form.blocks.map((b, i) => i === idx ? updated : b))}
+                          onRemove={() => set('blocks', form.blocks.filter((_, i) => i !== idx))}
+                          onMove={handleMove}
+                        />
+                      </div>
                     ))}
 
                     {form.blocks.length === 0 && (

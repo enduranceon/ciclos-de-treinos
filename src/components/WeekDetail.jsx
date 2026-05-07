@@ -439,7 +439,7 @@ export default function WeekDetail() {
         </div>
 
         {/* ── 7-column calendar ─────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-auto bg-[#F8FAFC]">
+        <div className="flex-1 overflow-x-auto bg-[#F8FAFC]">
           <div className="grid grid-cols-7 divide-x divide-slate-200 min-w-[600px] h-full">
             {[0,1,2,3,4,5,6].map(day => {
               const dayWorkouts = week.workouts
@@ -491,7 +491,7 @@ export default function WeekDetail() {
                   </div>
 
                   {/* ── Workout cards ── */}
-                  <div className="flex-1 p-2 space-y-2 min-h-[220px]">
+                  <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[220px]">
                     {dayWorkouts.length === 0 ? (
                       <div
                         onClick={() => setWorkoutModal({ defaultDay: day })}
