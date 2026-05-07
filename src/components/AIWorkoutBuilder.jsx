@@ -668,9 +668,10 @@ Notação compacta na descrição:
     5km Aeróbico Base                   ← pediu "fácil" (palavra, sem qualificador)
     8× 800m Limiar / 400m trote         ← pediu "limiar" (palavra, sem qualificador)
 
-  AQUECIMENTO / VOLTA À CALMA / ATIVAÇÃO / STRIDES: escreve só o nome da subzona, sem qualificador
-    3km Aeróbico Base    ← não escreve "3km z1 alto — Aeróbico Base"
-    2km Endurance Leve   ← não escreve "2km z2 baixo — Endurance Leve"
+  AQUECIMENTO / VOLTA À CALMA / ATIVAÇÃO / STRIDES: escreve SOMENTE o código da zona (z1, z2, trote...)
+    3km z1      ← não escreve "3km Aeróbico Base" nem "3km z1 alto — Aeróbico Base"
+    2km z2      ← não escreve "2km Endurance Leve"
+    1km trote   ← não escreve "1km Regenerativo"
 
 Notação do descanso passivo (i=):
   "0:30" → i=30''  |  "0:45" → i=45''  |  "1" → i=1'  |  "1:30" → i=1'30''
