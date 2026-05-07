@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { useAuth } from '../context/AuthContext';
+import { supabase } from '../lib/supabase';
 import { uuid, blockDistance, blockDurationMin, DEFAULT_RACE_PACE_CONFIG } from '../utils/helpers';
 
 const ANTHROPIC_API_BASE_URL = (import.meta.env.VITE_ANTHROPIC_API_BASE_URL || '/anthropic').replace(/\/$/, '');
@@ -979,6 +981,7 @@ function WorkoutPreview({ workout }) {
 export default function AIWorkoutBuilder({ context, onClose, onOpenEditor, mode = 'modal' }) {
   const isPanel = mode === 'panel';
   const { state, dispatch } = useApp();
+  const { session } = useAuth();
   const [prompt, setPrompt]             = useState('');
   const [loading, setLoading]           = useState(false);
   const [error, setError]               = useState(null);
@@ -1159,6 +1162,19 @@ export default function AIWorkoutBuilder({ context, onClose, onOpenEditor, mode 
     }
   }
 
+  async function sendToLab() {
+    if (!generated) return;
+    await supabase.from('lab_queue').insert({
+      created_by: session?.user?.id,
+      title: generated.title || 'Treino IA',
+      type: generated.type || 'corrida',
+      description: generated.description || '',
+      blocks: generated.blocks || [],
+      status: 'pending',
+    });
+    setSaved('lab');
+  }
+
   function openEditor() {
     if (!generated || !onOpenEditor) return;
     onOpenEditor(generated);
@@ -1308,13 +1324,13 @@ export default function AIWorkoutBuilder({ context, onClose, onOpenEditor, mode 
 
           {/* ── SAVED ── */}
           {saved && (
-            <div className="bg-green-50 border border-green-200 rounded-xl p-6 text-center">
-              <div className="text-4xl mb-3">{saved === 'day' ? '📅' : '📚'}</div>
-              <p className="font-black text-green-700 text-base">
-                {saved === 'day' ? 'Treino adicionado ao calendário!' : 'Treino salvo na Biblioteca!'}
+            <div className={`border rounded-xl p-6 text-center ${saved === 'lab' ? 'bg-amber-50 border-amber-200' : 'bg-green-50 border-green-200'}`}>
+              <div className="text-4xl mb-3">{saved === 'day' ? '📅' : saved === 'lab' ? '⚗️' : '📚'}</div>
+              <p className={`font-black text-base ${saved === 'lab' ? 'text-amber-700' : 'text-green-700'}`}>
+                {saved === 'day' ? 'Treino adicionado ao calendário!' : saved === 'lab' ? 'Treino enviado pro Laboratório!' : 'Treino salvo na Biblioteca!'}
               </p>
-              <p className="text-xs text-green-600 mt-1">
-                {saved === 'day' ? 'Aparece no dia que você selecionou.' : 'Disponível em Biblioteca → Sem pasta.'}
+              <p className={`text-xs mt-1 ${saved === 'lab' ? 'text-amber-600' : 'text-green-600'}`}>
+                {saved === 'day' ? 'Aparece no dia que você selecionou.' : saved === 'lab' ? 'Aguardando envio ao Training Peaks.' : 'Disponível em Biblioteca → Sem pasta.'}
               </p>
               <div className="mt-4"><WorkoutPreview workout={generated} /></div>
             </div>
@@ -1368,6 +1384,10 @@ export default function AIWorkoutBuilder({ context, onClose, onOpenEditor, mode 
                 <button onClick={saveToLibrary}
                   className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border border-slate-200 hover:bg-slate-50 transition-colors text-slate-600">
                   📚 Biblioteca
+                </button>
+                <button onClick={sendToLab}
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold border border-amber-300 text-amber-700 hover:bg-amber-50 transition-colors">
+                  ⚗️ Enviar pro Lab
                 </button>
                 {!isPanel && context && (
                   <button onClick={saveToDay}
