@@ -657,12 +657,19 @@ Notação compacta na descrição:
   Hill Repeats:      N× Xm↑ ZONA / Xm↓ ZONA
   Strides:           N× Xm z4 / Xm z1
 
-⚠️ Subzonas na descrição: escreva o NOME da subzona, não o código da zona.
-  "Sub Limiar" em vez de "z3/z4" | "Aeróbico Base" em vez de "z1" | "Limiar" em vez de "z4 alto"
+⚠️ Subzonas na descrição: escreva o qualificador (se usado) seguido do nome da subzona.
+  Formato: [código qualificado] — [Nome da Subzona]
+  Quando ativada por qualificador (z2 baixo, z3 alto, etc.): escreve "z2 baixo — Endurance Leve"
+  Quando ativada por palavra descritiva (fácil, limiar, etc.): escreve só o nome "Aeróbico Base"
+  Quando ativada por notação cruzada (z1/z2): escreve "z1/z2 — Aeróbico Base"
+
   Exemplos:
-    10× 1km Sub Limiar i=1'       ← sub limiar
-    5km Aeróbico Base              ← fácil / z1 alto / z2 baixo
-    8× 800m Limiar / 400m trote   ← limiar
+    18km z2 baixo — Endurance Leve      ← pediu "z2 baixo"
+    10km z2 alto — Endurance Extensivo  ← pediu "z2 alto"
+    10× 1km z3 alto — Sub Limiar i=1'  ← pediu "z3 alto"
+    8km z1/z2 — Aeróbico Base           ← pediu "z1/z2"
+    5km Aeróbico Base                   ← pediu "fácil" (sem qualificador)
+    8× 800m Limiar / 400m trote         ← pediu "limiar" (sem qualificador)
 
 Notação do descanso passivo (i=):
   "0:30" → i=30''  |  "0:45" → i=45''  |  "1" → i=1'  |  "1:30" → i=1'30''
