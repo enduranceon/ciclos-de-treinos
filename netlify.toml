@@ -2,6 +2,14 @@
   command = "npm run build"
   publish = "dist"
 
+# Proxy Anthropic API (avoids CORS in production)
+[[redirects]]
+  from = "/anthropic/*"
+  to = "https://api.anthropic.com/:splat"
+  status = 200
+  force = true
+
+# SPA fallback
 [[redirects]]
   from = "/*"
   to = "/index.html"
