@@ -13,6 +13,7 @@ import {
 import WorkoutForm from './WorkoutForm';
 import LibraryPanel from './LibraryPanel';
 import AIWorkoutBuilder from './AIWorkoutBuilder';
+import VariantPDFButton from './VariantPDF';
 
 const COL_DAYS   = [1, 2, 3, 4, 5, 6, 0]; // Mon → Sun
 const COL_LABELS = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
@@ -598,6 +599,12 @@ export default function VariantDetail() {
             >
               📊 Progressão
             </button>
+            <VariantPDFButton
+              cycle={cycle}
+              variant={variant}
+              phaseConfig={state.phaseConfig}
+              zoneConfig={state.zoneConfig}
+            />
 
             {/* Split variant selector */}
             {otherVariants.length > 0 && (
