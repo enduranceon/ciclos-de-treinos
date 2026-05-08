@@ -646,8 +646,23 @@ export default function VariantDetail() {
 
       {/* ── Progression charts panel ──────────────────────────────────────── */}
       {showCharts && (
-        <div className="bg-white border border-slate-200 px-5 py-4 flex-shrink-0 border-t-0">
-          <ProgressionPanel weeks={allWeeks} />
+        <div className="bg-white border border-slate-200 flex-shrink-0 border-t-0">
+          {splitVariantId && splitVariant ? (
+            <div className="flex divide-x divide-slate-200">
+              <div className="flex-1 px-5 py-4 min-w-0">
+                <p className="text-[10px] font-black text-[#001F3F] uppercase tracking-widest mb-3">{variant.name}</p>
+                <ProgressionPanel weeks={allWeeks} />
+              </div>
+              <div className="flex-1 px-5 py-4 min-w-0 bg-blue-50/20">
+                <p className="text-[10px] font-black text-[#001F3F] uppercase tracking-widest mb-3">{splitVariant.name}</p>
+                <ProgressionPanel weeks={splitVariant.weeks || []} />
+              </div>
+            </div>
+          ) : (
+            <div className="px-5 py-4">
+              <ProgressionPanel weeks={allWeeks} />
+            </div>
+          )}
         </div>
       )}
 
@@ -681,10 +696,10 @@ export default function VariantDetail() {
         {splitVariantId && splitVariant ? (
 
           /* ── SPLIT MODE: two independent scroll containers ── */
-          <div className="flex flex-1 overflow-hidden min-h-0 divide-x-2 divide-[#001F3F]/15">
+          <div className="flex flex-1 overflow-hidden min-h-0">
 
             {/* LEFT: current variant */}
-            <div className="flex-1 overflow-auto bg-[#F8FAFC] min-w-0">
+            <div className="flex-1 overflow-auto bg-[#F8FAFC] min-w-0 border-r-4 border-[#001F3F]/20">
               <div className="sticky top-0 z-20 flex bg-white border-b-2 border-slate-200 shadow-sm">
                 <div className="w-20 flex-shrink-0 border-r border-slate-200 px-2 py-2 flex items-end">
                   <span className="text-[10px] font-black text-[#001F3F] uppercase tracking-wider truncate">{variant.name}</span>
