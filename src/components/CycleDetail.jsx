@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { useConfirm } from '../context/ConfirmContext';
+import VariantCompare from './VariantCompare';
 import {
   calcWeekVolume, calcWeekZones,
   ZONE_COLORS, SPORT_ICONS, buildPhaseMap, DEFAULT_PHASE_CONFIG,
@@ -393,6 +394,7 @@ export default function CycleDetail() {
   const [showForm, setShowForm]         = useState(false);
   const [editVariant, setEditVariant]   = useState(null);
   const [showStructure, setShowStructure] = useState(false);
+  const [showCompare, setShowCompare]   = useState(false);
 
   const cycle = selected.cycle;
   if (!cycle) return null;
@@ -450,6 +452,12 @@ export default function CycleDetail() {
               }`}>
               🗓️ Estrutura do Ciclo
             </button>
+            {cycle.variants.length >= 2 && (
+              <button onClick={() => setShowCompare(true)}
+                className="flex items-center gap-2 bg-white/20 text-white font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-white/30 transition-colors">
+                ⟷ Comparar
+              </button>
+            )}
             <button onClick={() => setShowForm(true)}
               className="flex items-center gap-2 bg-white text-[#001F3F] font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-blue-50 transition-colors">
               <span className="text-lg leading-none">+</span> Nova Variante
@@ -520,6 +528,9 @@ export default function CycleDetail() {
       {showForm && <VariantForm onClose={() => setShowForm(false)} cycleId={cycle.id} />}
       {editVariant && (
         <VariantForm onClose={() => setEditVariant(null)} cycleId={cycle.id} editVariant={editVariant} />
+      )}
+      {showCompare && (
+        <VariantCompare cycle={cycle} onClose={() => setShowCompare(false)} />
       )}
     </div>
   );
