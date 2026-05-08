@@ -3,8 +3,16 @@ export function uuid() {
 }
 
 export function subtractWeeks(dateStr, weeks) {
-  const d = new Date(dateStr);
+  const d = new Date(dateStr + 'T12:00:00');
   d.setDate(d.getDate() - weeks * 7);
+  return d.toISOString().split('T')[0];
+}
+
+// Returns the Monday of the week containing dateStr
+function getMondayOf(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = d.getDay(); // 0=Sun … 6=Sat
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
   return d.toISOString().split('T')[0];
 }
 
@@ -469,10 +477,11 @@ export function emptyBlock(type = 'warmup') {
 
 export function generateWeeks(totalWeeks, raceDate) {
   const weeks = [];
+  const raceMonday = raceDate ? getMondayOf(raceDate) : null;
   for (let i = 0; i < totalWeeks; i++) {
     const weekNumber = i + 1;
     const weeksFromEnd = totalWeeks - weekNumber;
-    const startDate = raceDate ? subtractWeeks(raceDate, weeksFromEnd) : null;
+    const startDate = raceMonday ? subtractWeeks(raceMonday, weeksFromEnd) : null;
     const phase = weekNumber <= Math.floor(totalWeeks * 0.5) ? 'base'
       : weekNumber <= Math.floor(totalWeeks * 0.8) ? 'especifico'
       : weekNumber < totalWeeks ? 'polimento'
@@ -491,9 +500,10 @@ export function generateWeeks(totalWeeks, raceDate) {
 // Recalculate week dates when a race date is assigned to a prescription
 export function recalcWeekDates(weeks, raceDate) {
   const total = weeks.length;
+  const raceMonday = getMondayOf(raceDate);
   return weeks.map((w, i) => {
     const weeksFromEnd = total - (i + 1);
-    return { ...w, startDate: subtractWeeks(raceDate, weeksFromEnd) };
+    return { ...w, startDate: subtractWeeks(raceMonday, weeksFromEnd) };
   });
 }
 
