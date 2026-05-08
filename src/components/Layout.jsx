@@ -6,6 +6,7 @@ const NAV_TABS = [
   { view: 'cycles',   label: 'Ciclos',   icon: '📋', action: 'GO_CYCLES'   },
   { view: 'athletes', label: 'Atletas',  icon: '👤', action: 'GO_ATHLETES' },
   { view: 'studio',   label: 'Studio',   icon: '✨', action: 'GO_STUDIO'   },
+  { view: 'lab',      label: 'Lab',      icon: '⚗️', action: 'GO_LAB'      },
   { view: 'settings', label: 'Config.',  icon: '⚙️', action: 'GO_SETTINGS' },
 ];
 
@@ -21,14 +22,15 @@ export default function Layout({ children }) {
     if (tab.view === 'cycles')   return inCyclesSection;
     if (tab.view === 'athletes') return inAthletesSection;
     if (tab.view === 'studio')   return state.view === 'studio';
+    if (tab.view === 'lab')      return state.view === 'lab';
     if (tab.view === 'settings') return inSettings;
     return false;
   }
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC]">
+    <div className="h-screen flex flex-col bg-[#F8FAFC] overflow-hidden">
       {/* Header */}
-      <header className="bg-[#001F3F] text-white shadow-lg">
+      <header className="bg-[#001F3F] text-white shadow-lg flex-shrink-0">
         <div className="w-full px-6 py-0 flex items-stretch justify-between">
           {/* Logo */}
           <button
@@ -136,7 +138,7 @@ export default function Layout({ children }) {
       </header>
 
       {/* Content */}
-      <main className="w-full px-6 py-6">
+      <main className="flex-1 min-h-0 overflow-auto w-full px-6 py-6">
         {children}
       </main>
 
