@@ -357,6 +357,7 @@ export default function VariantDetail() {
   const [weekClipboard, setWeekClipboard] = useState(null); // { sourceWeekNumber, phase, workouts }
   const [dayClipboard, setDayClipboard]   = useState(null); // { sourceWeekNumber, sourceDow, workouts }
   const [splitVariantId, setSplitVariantId] = useState(null);
+  const [splitAiContext, setSplitAiContext] = useState(null);
   const dragPayload                       = useRef(null);
 
   const cycle   = selected.variantCycle;
@@ -518,6 +519,14 @@ export default function VariantDetail() {
       sourceWeekNumber: week.weekNumber,
       sourceDow: dow,
       workouts: dayWorkouts,
+    });
+  }
+
+  function pasteDaySplit(targetWeek, targetDow) {
+    if (!dayClipboard || !splitVariant) return;
+    (dayClipboard.workouts || []).forEach(workout => {
+      const cloned = { ...cloneWithFreshIds(workout), dayOfWeek: targetDow };
+      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId: cycle.id, variantId: splitVariant.id, weekId: targetWeek.id, workout: cloned } });
     });
   }
 
@@ -849,8 +858,12 @@ export default function VariantDetail() {
                               <span className="font-black text-slate-400 leading-none" style={{ fontSize: '13px' }}>{getDayDate(sWeek, colIdx)}</span>
                               {getDayMonth(sWeek, colIdx) && <span className="text-slate-300 leading-none font-medium" style={{ fontSize: '9px' }}>{getDayMonth(sWeek, colIdx)}</span>}
                             </div>
-                            <button onClick={() => setSplitWorkoutModal({ weekId: sWeek.id, defaultDay: dow })}
-                              className="w-5 h-5 rounded-full hover:bg-[#001F3F] text-slate-300 hover:text-white text-sm font-bold flex items-center justify-center opacity-0 group-hover/srow:opacity-100 transition-all">+</button>
+                            <div className="opacity-0 group-hover/srow:opacity-100 flex items-center gap-0.5 transition-all">
+                              <button onClick={e => { e.stopPropagation(); copyDay(sWeek, dow); }} className="w-5 h-5 rounded-full hover:bg-slate-200 text-slate-300 hover:text-slate-600 text-[9px] font-bold flex items-center justify-center" title="Copiar dia">C</button>
+                              <button onClick={e => { e.stopPropagation(); pasteDaySplit(sWeek, dow); }} disabled={!dayClipboard} className="w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-slate-600 hover:bg-slate-200" title="Colar dia">V</button>
+                              <button onClick={e => { e.stopPropagation(); setSplitWorkoutModal({ weekId: sWeek.id, defaultDay: dow }); }} className="w-5 h-5 rounded-full hover:bg-[#001F3F] text-slate-300 hover:text-white text-sm font-bold flex items-center justify-center" title="Novo treino">+</button>
+                              <button onClick={e => { e.stopPropagation(); setSplitAiContext({ weekId: sWeek.id, dayOfWeek: dow }); }} className="w-5 h-5 rounded-full text-slate-300 hover:text-white text-[9px] flex items-center justify-center transition-colors" style={{ background: 'none' }} onMouseEnter={e => e.currentTarget.style.background = 'linear-gradient(135deg,#001F3F,#0a3a6e)'} onMouseLeave={e => e.currentTarget.style.background = 'none'} title="Gerar com IA">✨</button>
+                            </div>
                           </div>
                           <div className="flex-1 px-1.5 pb-1.5 flex flex-col gap-1">
                             {dayWorkouts.map(w => (
@@ -1016,6 +1029,26 @@ export default function VariantDetail() {
               },
             });
             setAiContext(null);
+          }}
+        />
+      )}
+
+      {splitAiContext && splitVariant && (
+        <AIWorkoutBuilder
+          context={{ cycleId: cycle.id, variantId: splitVariant.id, ...splitAiContext }}
+          onClose={() => setSplitAiContext(null)}
+          onOpenEditor={generated => {
+            setSplitWorkoutModal({
+              weekId: splitAiContext.weekId,
+              defaultDay: splitAiContext.dayOfWeek,
+              libraryTemplate: {
+                name: generated.title,
+                sport: generated.type,
+                description: generated.description,
+                blocks: generated.blocks,
+              },
+            });
+            setSplitAiContext(null);
           }}
         />
       )}
