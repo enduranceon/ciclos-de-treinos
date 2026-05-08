@@ -474,6 +474,12 @@ export function AppProvider({ children, userId }) {
       workoutLibrary: s.workoutLibrary, libraryFolders: s.libraryFolders,
       zoneConfig: s.zoneConfig, racePaceConfig: s.racePaceConfig,
       phaseConfig: s.phaseConfig, anthropicApiKey: s.anthropicApiKey,
+      view: s.view,
+      selectedCycleId: s.selectedCycleId,
+      selectedVariantId: s.selectedVariantId,
+      selectedWeekId: s.selectedWeekId,
+      selectedAthleteId: s.selectedAthleteId,
+      selectedPrescriptionId: s.selectedPrescriptionId,
     })); } catch (_) {}
 
     // Debounce Supabase write (1.5s)
@@ -489,7 +495,7 @@ export function AppProvider({ children, userId }) {
 
   useEffect(() => {
     saveData(state);
-  }, [state.cycles, state.athletes, state.prescriptions, state.workoutLibrary, state.libraryFolders, state.zoneConfig, state.racePaceConfig, state.phaseConfig, state.anthropicApiKey]);
+  }, [state.cycles, state.athletes, state.prescriptions, state.workoutLibrary, state.libraryFolders, state.zoneConfig, state.racePaceConfig, state.phaseConfig, state.anthropicApiKey, state.view, state.selectedCycleId, state.selectedVariantId, state.selectedWeekId, state.selectedAthleteId, state.selectedPrescriptionId]);
 
   // Helper selectors
   const selected = {
