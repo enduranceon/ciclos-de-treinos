@@ -424,9 +424,49 @@ function loadState() {
   return initialState;
 }
 
+const SUPABASE_URL = 'https://tcdoxeduhwyvhkxwrymj.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_pIBbWPeeC9rhd1-DrWU0SQ_ef0waSCV';
+
 export function AppProvider({ children, userId }) {
   const [state, dispatch] = useReducer(reducer, null, loadState);
   const saveTimer = useRef(null);
+  const stateRef  = useRef(state);
+
+  // Keep ref in sync so beforeunload always sees latest state
+  useEffect(() => { stateRef.current = state; });
+
+  // Flush to Supabase on page unload (keepalive = browser completes even after F5)
+  useEffect(() => {
+    if (!userId) return;
+    function onBeforeUnload() {
+      const s = stateRef.current;
+      const payload = JSON.stringify({
+        coach_id: userId,
+        cycles:           s.cycles,
+        athletes:         s.athletes,
+        prescriptions:    s.prescriptions,
+        workout_library:  s.workoutLibrary,
+        library_folders:  s.libraryFolders,
+        zone_config:      s.zoneConfig,
+        race_pace_config: s.racePaceConfig,
+        phase_config:     s.phaseConfig,
+        anthropic_api_key: s.anthropicApiKey,
+      });
+      fetch(`${SUPABASE_URL}/rest/v1/coach_data`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${SUPABASE_KEY}`,
+          'Prefer': 'resolution=merge-duplicates,return=minimal',
+        },
+        body: payload,
+        keepalive: true,
+      });
+    }
+    window.addEventListener('beforeunload', onBeforeUnload);
+    return () => window.removeEventListener('beforeunload', onBeforeUnload);
+  }, [userId]);
 
   // Load from Supabase when userId is available
   useEffect(() => {
