@@ -348,6 +348,7 @@ export default function VariantDetail() {
   const { state, dispatch, selected } = useApp();
   const { confirm } = useConfirm();
   const [workoutModal, setWorkoutModal]   = useState(null);
+  const [splitWorkoutModal, setSplitWorkoutModal] = useState(null);
   const [pending, setPending]             = useState(null);
   const [dragOver, setDragOver]           = useState(null);
   const [phasePickerWeekId, setPhasePickerWeekId] = useState(null);
@@ -355,6 +356,7 @@ export default function VariantDetail() {
   const [aiContext, setAiContext]         = useState(null); // { weekId, dayOfWeek } | null
   const [weekClipboard, setWeekClipboard] = useState(null); // { sourceWeekNumber, phase, workouts }
   const [dayClipboard, setDayClipboard]   = useState(null); // { sourceWeekNumber, sourceDow, workouts }
+  const [splitVariantId, setSplitVariantId] = useState(null);
   const dragPayload                       = useRef(null);
 
   const cycle   = selected.variantCycle;
@@ -364,6 +366,10 @@ export default function VariantDetail() {
   const { colors: phaseColors, labels: phaseLabels } = buildPhaseMap(state.phaseConfig);
   const allWeeks      = variant.weeks || [];
   const totalSessions = allWeeks.reduce((s, w) => s + (w.workouts || []).length, 0);
+
+  // Split mode
+  const otherVariants = cycle.variants.filter(v => v.id !== variant.id);
+  const splitVariant  = splitVariantId ? cycle.variants.find(v => v.id === splitVariantId) : null;
 
   // ── Drag handlers ──────────────────────────────────────────────────────────
   function handleDragStart(payload) {
@@ -383,19 +389,20 @@ export default function VariantDetail() {
     }
   }
 
-  function handleDrop(e, week, dow) {
+  function handleDrop(e, week, dow, targetVariantId) {
     e.preventDefault();
     setDragOver(null);
     const payload = dragPayload.current;
     if (!payload) return;
     dragPayload.current = null;
+    const tVariantId = targetVariantId || variant.id;
 
     if (payload.type === 'library') {
       const item = payload.item;
       dispatch({
         type: 'UPSERT_WORKOUT',
         payload: {
-          cycleId: cycle.id, variantId: variant.id, weekId: week.id,
+          cycleId: cycle.id, variantId: tVariantId, weekId: week.id,
           workout: {
             id: uuid(), dayOfWeek: dow, period: 'manha',
             title: item.name, type: item.sport || 'corrida',
@@ -406,10 +413,35 @@ export default function VariantDetail() {
         },
       });
     } else if (payload.type === 'workout') {
-      const { workout, fromWeekId } = payload;
-      if (fromWeekId === week.id && workout.dayOfWeek === dow) return;
-      dispatch({ type: 'DELETE_WORKOUT', payload: { cycleId: cycle.id, variantId: variant.id, weekId: fromWeekId, workoutId: workout.id } });
-      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId: cycle.id, variantId: variant.id, weekId: week.id, workout: { ...workout, dayOfWeek: dow } } });
+      const { workout, fromWeekId, fromVariantId } = payload;
+      const crossVariant = fromVariantId && fromVariantId !== tVariantId;
+      if (!crossVariant && fromWeekId === week.id && workout.dayOfWeek === dow) return;
+      if (!crossVariant) {
+        // same variant: move
+        dispatch({ type: 'DELETE_WORKOUT', payload: { cycleId: cycle.id, variantId: tVariantId, weekId: fromWeekId, workoutId: workout.id } });
+      }
+      // cross-variant: copy (don't delete source)
+      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId: cycle.id, variantId: tVariantId, weekId: week.id, workout: { ...workout, id: crossVariant ? uuid() : workout.id, dayOfWeek: dow } } });
+    }
+  }
+
+  function handleDeleteSplit(weekId, workoutId) {
+    confirm({
+      title: 'Excluir sessão?',
+      message: 'Esta ação não pode ser desfeita.',
+      confirmText: 'Excluir',
+      onConfirm: () => dispatch({ type: 'DELETE_WORKOUT', payload: { cycleId: cycle.id, variantId: splitVariant.id, weekId, workoutId } }),
+    });
+  }
+
+  function pasteWeekToSplitVariant(targetWeek) {
+    if (!weekClipboard || !splitVariant) return;
+    (weekClipboard.workouts || []).forEach(workout => {
+      const cloned = cloneWithFreshIds(workout);
+      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId: cycle.id, variantId: splitVariant.id, weekId: targetWeek.id, workout: cloned } });
+    });
+    if (weekClipboard.phase) {
+      dispatch({ type: 'UPDATE_WEEK', payload: { cycleId: cycle.id, variantId: splitVariant.id, weekId: targetWeek.id, phase: weekClipboard.phase } });
     }
   }
 
@@ -557,6 +589,30 @@ export default function VariantDetail() {
             >
               📊 Progressão
             </button>
+
+            {/* Split variant selector */}
+            {otherVariants.length > 0 && (
+              splitVariantId ? (
+                <button
+                  onClick={() => setSplitVariantId(null)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-300 bg-slate-100 text-slate-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-all"
+                >
+                  ✕ Fechar split
+                </button>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">⟷</span>
+                  <select
+                    defaultValue=""
+                    onChange={e => { if (e.target.value) setSplitVariantId(e.target.value); }}
+                    className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#001F3F]/40 bg-white text-slate-600 font-semibold"
+                  >
+                    <option value="" disabled>Abrir variante ao lado…</option>
+                    {otherVariants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                </div>
+              )
+            )}
           </div>
           {(weekClipboard || dayClipboard) && (
             <div className="flex items-center gap-2 text-[10px] flex-wrap justify-end">
@@ -622,220 +678,288 @@ export default function VariantDetail() {
         </div>
 
         {/* ── Calendar grid ─────────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-auto bg-[#F8FAFC]">
+        {splitVariantId && splitVariant ? (
 
-          {/* Sticky day header row */}
-          <div className="sticky top-0 z-20 flex bg-white border-b-2 border-slate-200 shadow-sm">
-            {/* Week label column */}
-            <div className="w-20 flex-shrink-0 border-r border-slate-200 px-3 py-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SEM.</span>
-            </div>
-            {/* Day columns */}
-            {COL_LABELS.map((lbl, i) => (
-              <div key={i}
-                className={`flex-1 min-w-[110px] px-3 py-3 border-r border-slate-100 ${i >= 5 ? 'bg-slate-50' : ''}`}>
-                <span className={`text-xs font-black tracking-widest uppercase ${i >= 5 ? 'text-slate-300' : 'text-slate-600'}`}>
-                  {lbl}
-                </span>
+          /* ── SPLIT MODE: two independent scroll containers ── */
+          <div className="flex flex-1 overflow-hidden min-h-0 divide-x-2 divide-[#001F3F]/15">
+
+            {/* LEFT: current variant */}
+            <div className="flex-1 overflow-auto bg-[#F8FAFC] min-w-0">
+              <div className="sticky top-0 z-20 flex bg-white border-b-2 border-slate-200 shadow-sm">
+                <div className="w-20 flex-shrink-0 border-r border-slate-200 px-2 py-2 flex items-end">
+                  <span className="text-[10px] font-black text-[#001F3F] uppercase tracking-wider truncate">{variant.name}</span>
+                </div>
+                {COL_LABELS.map((lbl, i) => (
+                  <div key={i} className={`flex-1 min-w-[90px] px-2 py-2 border-r border-slate-100 ${i >= 5 ? 'bg-slate-50' : ''}`}>
+                    <span className={`text-xs font-black tracking-widest uppercase ${i >= 5 ? 'text-slate-300' : 'text-slate-600'}`}>{lbl}</span>
+                  </div>
+                ))}
+                <div className="w-24 flex-shrink-0 border-l border-slate-200 px-2 py-2">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Vol.</span>
+                </div>
               </div>
-            ))}
-            {/* Summary column */}
-            <div className="w-32 flex-shrink-0 border-l border-slate-200 px-3 py-3">
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">RESUMO</span>
+
+              {allWeeks.map(week => {
+                const wVol = calcWeekVolume(week.workouts || []);
+                const phaseColor = phaseColors[week.phase] || '#94A3B8';
+                return (
+                  <div key={week.id} className="flex border-b border-slate-200 group/row" style={{ minHeight: '110px' }}>
+                    <div className="w-20 flex-shrink-0 border-r border-slate-200 bg-white px-2 py-2 flex flex-col justify-between">
+                      <button onClick={() => dispatch({ type: 'GO_WEEK', weekId: week.id })} className="text-left group/wbtn">
+                        <span className="text-sm font-black text-[#001F3F] group-hover/wbtn:text-blue-600 transition-colors block leading-none">Sem {week.weekNumber}</span>
+                        {week.startDate && <span className="text-[10px] text-slate-400 font-mono leading-none mt-0.5 block">{new Date(week.startDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>}
+                      </button>
+                      <div className="relative mt-auto space-y-1">
+                        <button onClick={e => { e.stopPropagation(); setPhasePickerWeekId(v => v === week.id ? null : week.id); }}
+                          className="w-full inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full hover:brightness-95 transition-all min-w-0"
+                          style={{ backgroundColor: phaseColor + '25' }}>
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: phaseColor }} />
+                          <span className="font-bold leading-none truncate block min-w-0" style={{ color: phaseColor, fontSize: '9px' }}>{phaseLabels[week.phase] || '—'}</span>
+                        </button>
+                        <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                          <button onClick={e => { e.stopPropagation(); copyWeek(week); }}
+                            className="flex-1 px-1 py-0.5 rounded-md border border-slate-200 text-[9px] font-bold text-slate-500 hover:text-[#001F3F] hover:border-slate-300" title="Copiar semana">Cop.</button>
+                          <button onClick={e => { e.stopPropagation(); pasteWeek(week); }} disabled={!weekClipboard}
+                            className="flex-1 px-1 py-0.5 rounded-md border text-[9px] font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-slate-200 text-slate-500 hover:text-[#001F3F] hover:border-slate-300"
+                            title={weekClipboard ? 'Colar semana copiada' : 'Copie uma semana primeiro'}>Col.</button>
+                        </div>
+                        {phasePickerWeekId === week.id && <PhasePicker week={week} cycleId={cycle.id} variantId={variant.id} onClose={() => setPhasePickerWeekId(null)} />}
+                      </div>
+                    </div>
+                    {COL_DAYS.map((dow, colIdx) => {
+                      const dayWorkouts = (week.workouts || []).filter(w => w.dayOfWeek === dow).sort((a, b) => (PERIOD_ORDER[a.period] ?? 0) - (PERIOD_ORDER[b.period] ?? 0));
+                      const cellKey = `L-${week.id}-${dow}`;
+                      const isOver = dragOver === cellKey;
+                      return (
+                        <div key={dow}
+                          className={`flex-1 min-w-[90px] border-r border-slate-100 flex flex-col transition-colors ${colIdx >= 5 ? 'bg-slate-50/70' : 'bg-white'} ${pending ? 'cursor-copy' : ''} ${isOver ? 'bg-blue-50 ring-2 ring-blue-300 ring-inset' : ''}`}
+                          onClick={() => pending && openNew(week, dow)}
+                          onDragOver={e => handleDragOver(e, cellKey)}
+                          onDragEnter={e => { e.preventDefault(); setDragOver(cellKey); }}
+                          onDragLeave={e => handleDragLeave(e, cellKey)}
+                          onDrop={e => handleDrop(e, week, dow, variant.id)}
+                        >
+                          <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
+                            <div className="flex items-baseline gap-1">
+                              <span className="font-black text-slate-400 leading-none" style={{ fontSize: '13px' }}>{getDayDate(week, colIdx)}</span>
+                              {getDayMonth(week, colIdx) && <span className="text-slate-300 leading-none font-medium" style={{ fontSize: '9px' }}>{getDayMonth(week, colIdx)}</span>}
+                            </div>
+                            {!pending && (
+                              <div className="opacity-0 group-hover/row:opacity-100 flex items-center gap-0.5 transition-all">
+                                <button onClick={e => { e.stopPropagation(); copyDay(week, dow); }} className="w-5 h-5 rounded-full hover:bg-slate-200 text-slate-300 hover:text-slate-600 text-[9px] font-bold flex items-center justify-center" title="Copiar dia">C</button>
+                                <button onClick={e => { e.stopPropagation(); pasteDay(week, dow); }} disabled={!dayClipboard} className="w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-slate-600 hover:bg-slate-200" title="Colar dia">V</button>
+                                <button onClick={e => { e.stopPropagation(); openNew(week, dow); }} className="w-5 h-5 rounded-full hover:bg-[#001F3F] text-slate-300 hover:text-white text-sm font-bold flex items-center justify-center" title="Novo treino">+</button>
+                                <button onClick={e => { e.stopPropagation(); setAiContext({ weekId: week.id, dayOfWeek: dow }); }} className="w-5 h-5 rounded-full text-slate-300 hover:text-white text-[9px] flex items-center justify-center transition-colors" style={{ background: 'none' }} onMouseEnter={e => e.currentTarget.style.background = 'linear-gradient(135deg,#001F3F,#0a3a6e)'} onMouseLeave={e => e.currentTarget.style.background = 'none'} title="Gerar com IA">✨</button>
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex-1 px-1.5 pb-1.5 flex flex-col gap-1">
+                            {dayWorkouts.map(w => (
+                              <CalendarCard key={w.id} workout={w} weekId={week.id}
+                                onEdit={() => !pending && setWorkoutModal({ weekId: week.id, workout: w })}
+                                onDelete={() => handleDelete(week.id, w.id)}
+                                onDragStart={p => handleDragStart({ ...p, fromVariantId: variant.id })}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="w-24 flex-shrink-0 border-l border-slate-200 bg-white px-2 py-2 flex flex-col justify-center gap-1">
+                      {wVol > 0 && <span className="text-sm font-black font-mono text-[#001F3F]">{wVol.toFixed(1)} km</span>}
+                      {weekClipboard && (
+                        <button onClick={e => { e.stopPropagation(); pasteWeekToSplitVariant(splitVariant.weeks.find(sw => sw.weekNumber === week.weekNumber) || splitVariant.weeks[week.weekNumber - 1]); }}
+                          className="text-[9px] font-bold px-1.5 py-1 rounded-md bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition-colors leading-tight text-left"
+                          title="Colar semana copiada na outra variante">→ outra</button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {allWeeks.length === 0 && <div className="flex items-center justify-center h-48"><p className="text-sm text-slate-300">Nenhuma semana.</p></div>}
+            </div>
+
+            {/* RIGHT: split variant */}
+            <div className="flex-1 overflow-auto bg-blue-50/10 min-w-0">
+              <div className="sticky top-0 z-20 flex bg-white border-b-2 border-blue-200 shadow-sm">
+                <div className="w-20 flex-shrink-0 border-r border-slate-200 px-2 py-2 flex items-end bg-blue-50/30">
+                  <span className="text-[10px] font-black text-[#001F3F] uppercase tracking-wider truncate">{splitVariant.name}</span>
+                </div>
+                {COL_LABELS.map((lbl, i) => (
+                  <div key={i} className={`flex-1 min-w-[90px] px-2 py-2 border-r border-slate-100 ${i >= 5 ? 'bg-slate-50' : 'bg-blue-50/20'}`}>
+                    <span className={`text-xs font-black tracking-widest uppercase ${i >= 5 ? 'text-slate-300' : 'text-slate-500'}`}>{lbl}</span>
+                  </div>
+                ))}
+                <div className="w-24 flex-shrink-0 border-l border-slate-200 px-2 py-2 bg-blue-50/20">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Vol.</span>
+                </div>
+              </div>
+
+              {(splitVariant.weeks || []).map(sWeek => {
+                const sVol = calcWeekVolume(sWeek.workouts || []);
+                const phaseColor = phaseColors[sWeek.phase] || '#94A3B8';
+                return (
+                  <div key={sWeek.id} className="flex border-b border-slate-200 group/srow" style={{ minHeight: '110px' }}>
+                    <div className="w-20 flex-shrink-0 border-r border-slate-200 bg-white px-2 py-2 flex flex-col justify-between">
+                      <div>
+                        <span className="text-sm font-black text-[#001F3F] block leading-none">Sem {sWeek.weekNumber}</span>
+                        {sWeek.startDate && <span className="text-[10px] text-slate-400 font-mono leading-none mt-0.5 block">{new Date(sWeek.startDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>}
+                      </div>
+                      <div className="relative mt-auto space-y-1">
+                        <div className="w-full inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full min-w-0" style={{ backgroundColor: phaseColor + '25' }}>
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: phaseColor }} />
+                          <span className="font-bold leading-none truncate block min-w-0" style={{ color: phaseColor, fontSize: '9px' }}>{phaseLabels[sWeek.phase] || '—'}</span>
+                        </div>
+                        {weekClipboard && (
+                          <button onClick={e => { e.stopPropagation(); pasteWeekToSplitVariant(sWeek); }}
+                            className="w-full px-1 py-0.5 rounded-md border border-blue-200 text-[9px] font-bold text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover/srow:opacity-100"
+                            title="Colar semana da outra variante aqui">← Colar</button>
+                        )}
+                      </div>
+                    </div>
+                    {COL_DAYS.map((dow, colIdx) => {
+                      const dayWorkouts = (sWeek.workouts || []).filter(w => w.dayOfWeek === dow).sort((a, b) => (PERIOD_ORDER[a.period] ?? 0) - (PERIOD_ORDER[b.period] ?? 0));
+                      const cellKey = `R-${sWeek.id}-${dow}`;
+                      const isOver = dragOver === cellKey;
+                      return (
+                        <div key={dow}
+                          className={`flex-1 min-w-[90px] border-r border-slate-100 flex flex-col transition-colors ${colIdx >= 5 ? 'bg-slate-50/70' : 'bg-blue-50/10'} ${isOver ? 'bg-blue-100 ring-2 ring-blue-400 ring-inset' : ''}`}
+                          onDragOver={e => { e.preventDefault(); setDragOver(cellKey); }}
+                          onDragEnter={e => { e.preventDefault(); setDragOver(cellKey); }}
+                          onDragLeave={e => handleDragLeave(e, cellKey)}
+                          onDrop={e => handleDrop(e, sWeek, dow, splitVariant.id)}
+                        >
+                          <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
+                            <div className="flex items-baseline gap-1">
+                              <span className="font-black text-slate-400 leading-none" style={{ fontSize: '13px' }}>{getDayDate(sWeek, colIdx)}</span>
+                              {getDayMonth(sWeek, colIdx) && <span className="text-slate-300 leading-none font-medium" style={{ fontSize: '9px' }}>{getDayMonth(sWeek, colIdx)}</span>}
+                            </div>
+                            <button onClick={() => setSplitWorkoutModal({ weekId: sWeek.id, defaultDay: dow })}
+                              className="w-5 h-5 rounded-full hover:bg-[#001F3F] text-slate-300 hover:text-white text-sm font-bold flex items-center justify-center opacity-0 group-hover/srow:opacity-100 transition-all">+</button>
+                          </div>
+                          <div className="flex-1 px-1.5 pb-1.5 flex flex-col gap-1">
+                            {dayWorkouts.map(w => (
+                              <CalendarCard key={w.id} workout={w} weekId={sWeek.id}
+                                onEdit={() => setSplitWorkoutModal({ weekId: sWeek.id, workout: w })}
+                                onDelete={() => handleDeleteSplit(sWeek.id, w.id)}
+                                onDragStart={p => handleDragStart({ ...p, fromVariantId: splitVariant.id })}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    <div className="w-24 flex-shrink-0 border-l border-slate-200 bg-white px-2 py-2 flex flex-col justify-center gap-1">
+                      {sVol > 0 && <span className="text-sm font-black font-mono text-[#001F3F]">{sVol.toFixed(1)} km</span>}
+                    </div>
+                  </div>
+                );
+              })}
+              {(splitVariant.weeks || []).length === 0 && <div className="flex items-center justify-center h-48"><p className="text-sm text-slate-300">Nenhuma semana.</p></div>}
             </div>
           </div>
 
-          {/* Week rows */}
-          {allWeeks.map(week => {
-            const wVol  = calcWeekVolume(week.workouts || []);
-            const wStress  = calcWeekStress(week.workouts || [], state.zoneConfig);
-            const wMins = (week.workouts || []).flatMap(w => w.blocks || []).reduce((s, b) => s + blockDurationMin(b), 0);
-            const phaseColor = phaseColors[week.phase] || '#94A3B8';
+        ) : (
 
-            return (
-              <div
-                key={week.id}
-                className="flex border-b border-slate-200 group/row"
-                style={{ minHeight: '110px' }}
-              >
-                {/* Week label cell */}
-                <div className="w-20 flex-shrink-0 border-r border-slate-200 bg-white px-3 py-3 flex flex-col justify-between">
-                  <button
-                    onClick={() => dispatch({ type: 'GO_WEEK', weekId: week.id })}
-                    className="text-left group/wbtn"
-                  >
-                    <span className="text-sm font-black text-[#001F3F] group-hover/wbtn:text-blue-600 transition-colors block leading-none">
-                      Sem {week.weekNumber}
-                    </span>
-                    {week.startDate && (
-                      <span className="text-[10px] text-slate-400 font-mono leading-none mt-0.5 block">
-                        {new Date(week.startDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
-                      </span>
-                    )}
-                  </button>
-                  {/* Phase badge — click to change */}
-                  <div className="relative mt-auto space-y-1">
-                    <button
-                      onClick={e => { e.stopPropagation(); setPhasePickerWeekId(v => v === week.id ? null : week.id); }}
-                      className="w-full inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full hover:brightness-95 transition-all min-w-0"
-                      style={{ backgroundColor: phaseColor + '25' }}
-                      title="Clique para mudar o período"
-                    >
-                      <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: phaseColor }} />
-                      <span
-                        className="font-bold leading-none truncate block min-w-0"
-                        style={{ color: phaseColor, fontSize: '9px' }}
-                      >
-                        {phaseLabels[week.phase] || '—'}
-                      </span>
-                      <span style={{ color: phaseColor, fontSize: '7px', opacity: 0.7 }}>▾</span>
-                    </button>
-                    <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
-                      <button
-                        onClick={e => { e.stopPropagation(); copyWeek(week); }}
-                        className="flex-1 px-1.5 py-0.5 rounded-md border border-slate-200 text-[9px] font-bold text-slate-500 hover:text-[#001F3F] hover:border-slate-300"
-                        title="Copiar semana"
-                      >
-                        Cop.
-                      </button>
-                      <button
-                        onClick={e => { e.stopPropagation(); pasteWeek(week); }}
-                        disabled={!weekClipboard}
-                        className="flex-1 px-1.5 py-0.5 rounded-md border text-[9px] font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-slate-200 text-slate-500 hover:text-[#001F3F] hover:border-slate-300"
-                        title={weekClipboard ? 'Colar semana copiada' : 'Copie uma semana primeiro'}
-                      >
-                        Col.
-                      </button>
-                    </div>
-                    {phasePickerWeekId === week.id && (
-                      <PhasePicker
-                        week={week}
-                        cycleId={cycle.id}
-                        variantId={variant.id}
-                        onClose={() => setPhasePickerWeekId(null)}
-                      />
-                    )}
-                  </div>
+          /* ── NORMAL MODE: single scroll container ── */
+          <div className="flex-1 overflow-auto bg-[#F8FAFC]">
+            <div className="sticky top-0 z-20 flex bg-white border-b-2 border-slate-200 shadow-sm">
+              <div className="w-20 flex-shrink-0 border-r border-slate-200 px-3 py-3">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">SEM.</span>
+              </div>
+              {COL_LABELS.map((lbl, i) => (
+                <div key={i} className={`flex-1 min-w-[110px] px-3 py-3 border-r border-slate-100 ${i >= 5 ? 'bg-slate-50' : ''}`}>
+                  <span className={`text-xs font-black tracking-widest uppercase ${i >= 5 ? 'text-slate-300' : 'text-slate-600'}`}>{lbl}</span>
                 </div>
+              ))}
+              <div className="w-32 flex-shrink-0 border-l border-slate-200 px-3 py-3">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">RESUMO</span>
+              </div>
+            </div>
 
-                {/* Day cells */}
-                {COL_DAYS.map((dow, colIdx) => {
-                  const dayWorkouts = (week.workouts || [])
-                    .filter(w => w.dayOfWeek === dow)
-                    .sort((a, b) => (PERIOD_ORDER[a.period] ?? 0) - (PERIOD_ORDER[b.period] ?? 0));
-                  const isWeekend = colIdx >= 5;
-                  const cellKey   = `${week.id}-${dow}`;
-                  const isOver    = dragOver === cellKey;
-                  const isPending = !!pending;
-
-                  const dayNum   = getDayDate(week, colIdx);
-                  const dayMonth = getDayMonth(week, colIdx);
-
-                  return (
-                    <div
-                      key={dow}
-                      className={`flex-1 min-w-[110px] border-r border-slate-100 flex flex-col transition-colors
-                        ${isWeekend ? 'bg-slate-50/70' : 'bg-white'}
-                        ${isPending ? 'cursor-copy' : ''}
-                        ${isOver ? 'bg-blue-50 ring-2 ring-blue-300 ring-inset' : ''}
-                      `}
-                      onClick={() => isPending && openNew(week, dow)}
-                      onDragOver={e => handleDragOver(e, cellKey)}
-                      onDragEnter={e => { e.preventDefault(); setDragOver(cellKey); }}
-                      onDragLeave={e => handleDragLeave(e, cellKey)}
-                      onDrop={e => handleDrop(e, week, dow)}
-                    >
-                      {/* Day date label */}
-                      <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
-                        <div className="flex items-baseline gap-1">
-                          <span className="font-black text-slate-400 leading-none" style={{ fontSize: '13px' }}>
-                            {dayNum}
-                          </span>
-                          {dayMonth && (
-                            <span className="text-slate-300 leading-none font-medium" style={{ fontSize: '9px' }}>
-                              {dayMonth}
-                            </span>
+            {allWeeks.map(week => {
+              const wVol    = calcWeekVolume(week.workouts || []);
+              const wStress = calcWeekStress(week.workouts || [], state.zoneConfig);
+              const wMins   = (week.workouts || []).flatMap(w => w.blocks || []).reduce((s, b) => s + blockDurationMin(b), 0);
+              const phaseColor = phaseColors[week.phase] || '#94A3B8';
+              return (
+                <div key={week.id} className="flex border-b border-slate-200 group/row" style={{ minHeight: '110px' }}>
+                  <div className="w-20 flex-shrink-0 border-r border-slate-200 bg-white px-3 py-3 flex flex-col justify-between">
+                    <button onClick={() => dispatch({ type: 'GO_WEEK', weekId: week.id })} className="text-left group/wbtn">
+                      <span className="text-sm font-black text-[#001F3F] group-hover/wbtn:text-blue-600 transition-colors block leading-none">Sem {week.weekNumber}</span>
+                      {week.startDate && <span className="text-[10px] text-slate-400 font-mono leading-none mt-0.5 block">{new Date(week.startDate + 'T12:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}</span>}
+                    </button>
+                    <div className="relative mt-auto space-y-1">
+                      <button onClick={e => { e.stopPropagation(); setPhasePickerWeekId(v => v === week.id ? null : week.id); }}
+                        className="w-full inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full hover:brightness-95 transition-all min-w-0"
+                        style={{ backgroundColor: phaseColor + '25' }} title="Clique para mudar o período">
+                        <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: phaseColor }} />
+                        <span className="font-bold leading-none truncate block min-w-0" style={{ color: phaseColor, fontSize: '9px' }}>{phaseLabels[week.phase] || '—'}</span>
+                        <span style={{ color: phaseColor, fontSize: '7px', opacity: 0.7 }}>▾</span>
+                      </button>
+                      <div className="flex items-center gap-1 opacity-0 group-hover/row:opacity-100 transition-opacity">
+                        <button onClick={e => { e.stopPropagation(); copyWeek(week); }}
+                          className="flex-1 px-1.5 py-0.5 rounded-md border border-slate-200 text-[9px] font-bold text-slate-500 hover:text-[#001F3F] hover:border-slate-300" title="Copiar semana">Cop.</button>
+                        <button onClick={e => { e.stopPropagation(); pasteWeek(week); }} disabled={!weekClipboard}
+                          className="flex-1 px-1.5 py-0.5 rounded-md border text-[9px] font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-slate-200 text-slate-500 hover:text-[#001F3F] hover:border-slate-300"
+                          title={weekClipboard ? 'Colar semana copiada' : 'Copie uma semana primeiro'}>Col.</button>
+                      </div>
+                      {phasePickerWeekId === week.id && <PhasePicker week={week} cycleId={cycle.id} variantId={variant.id} onClose={() => setPhasePickerWeekId(null)} />}
+                    </div>
+                  </div>
+                  {COL_DAYS.map((dow, colIdx) => {
+                    const dayWorkouts = (week.workouts || []).filter(w => w.dayOfWeek === dow).sort((a, b) => (PERIOD_ORDER[a.period] ?? 0) - (PERIOD_ORDER[b.period] ?? 0));
+                    const isWeekend = colIdx >= 5;
+                    const cellKey = `${week.id}-${dow}`;
+                    const isOver = dragOver === cellKey;
+                    const isPending = !!pending;
+                    return (
+                      <div key={dow}
+                        className={`flex-1 min-w-[110px] border-r border-slate-100 flex flex-col transition-colors ${isWeekend ? 'bg-slate-50/70' : 'bg-white'} ${isPending ? 'cursor-copy' : ''} ${isOver ? 'bg-blue-50 ring-2 ring-blue-300 ring-inset' : ''}`}
+                        onClick={() => isPending && openNew(week, dow)}
+                        onDragOver={e => handleDragOver(e, cellKey)}
+                        onDragEnter={e => { e.preventDefault(); setDragOver(cellKey); }}
+                        onDragLeave={e => handleDragLeave(e, cellKey)}
+                        onDrop={e => handleDrop(e, week, dow, variant.id)}
+                      >
+                        <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
+                          <div className="flex items-baseline gap-1">
+                            <span className="font-black text-slate-400 leading-none" style={{ fontSize: '13px' }}>{getDayDate(week, colIdx)}</span>
+                            {getDayMonth(week, colIdx) && <span className="text-slate-300 leading-none font-medium" style={{ fontSize: '9px' }}>{getDayMonth(week, colIdx)}</span>}
+                          </div>
+                          {!isPending && (
+                            <div className="opacity-0 group-hover/row:opacity-100 flex items-center gap-0.5 transition-all">
+                              <button onClick={e => { e.stopPropagation(); copyDay(week, dow); }} className="w-5 h-5 rounded-full hover:bg-slate-200 text-slate-300 hover:text-slate-600 text-[9px] font-bold flex items-center justify-center leading-none" title="Copiar dia">C</button>
+                              <button onClick={e => { e.stopPropagation(); pasteDay(week, dow); }} disabled={!dayClipboard} className="w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center leading-none transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-slate-600 hover:bg-slate-200" title={dayClipboard ? 'Colar dia copiado' : 'Copie um dia primeiro'}>V</button>
+                              <button onClick={e => { e.stopPropagation(); openNew(week, dow); }} className="w-5 h-5 rounded-full hover:bg-[#001F3F] text-slate-300 hover:text-white text-sm font-bold flex items-center justify-center leading-none" title="Novo treino">+</button>
+                              <button onClick={e => { e.stopPropagation(); setAiContext({ weekId: week.id, dayOfWeek: dow }); }} className="w-5 h-5 rounded-full text-slate-300 hover:text-white text-[9px] flex items-center justify-center leading-none transition-colors" style={{ background: 'none' }} onMouseEnter={e => e.currentTarget.style.background = 'linear-gradient(135deg,#001F3F,#0a3a6e)'} onMouseLeave={e => e.currentTarget.style.background = 'none'} title="Gerar com IA">✨</button>
+                            </div>
                           )}
                         </div>
-                        {!isPending && (
-                          <div className="opacity-0 group-hover/row:opacity-100 flex items-center gap-0.5 transition-all">
-                            <button
-                              onClick={e => { e.stopPropagation(); copyDay(week, dow); }}
-                              className="w-5 h-5 rounded-full hover:bg-slate-200 text-slate-300 hover:text-slate-600 text-[9px] font-bold flex items-center justify-center leading-none"
-                              title="Copiar dia"
-                            >C</button>
-                            <button
-                              onClick={e => { e.stopPropagation(); pasteDay(week, dow); }}
-                              disabled={!dayClipboard}
-                              className="w-5 h-5 rounded-full text-[9px] font-bold flex items-center justify-center leading-none transition-colors disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 hover:text-slate-600 hover:bg-slate-200"
-                              title={dayClipboard ? 'Colar dia copiado' : 'Copie um dia primeiro'}
-                            >V</button>
-                            <button
-                              onClick={e => { e.stopPropagation(); openNew(week, dow); }}
-                              className="w-5 h-5 rounded-full hover:bg-[#001F3F] text-slate-300 hover:text-white text-sm font-bold flex items-center justify-center leading-none"
-                              title="Novo treino"
-                            >+</button>
-                            <button
-                              onClick={e => { e.stopPropagation(); setAiContext({ weekId: week.id, dayOfWeek: dow }); }}
-                              className="w-5 h-5 rounded-full text-slate-300 hover:text-white text-[9px] flex items-center justify-center leading-none transition-colors"
-                              style={{ background: 'none' }}
-                              onMouseEnter={e => e.currentTarget.style.background = 'linear-gradient(135deg,#001F3F,#0a3a6e)'}
-                              onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                              title="Gerar com IA"
-                            >✨</button>
-                          </div>
-                        )}
+                        <div className="flex-1 px-1.5 pb-1.5 flex flex-col gap-1">
+                          {dayWorkouts.map(w => (
+                            <CalendarCard key={w.id} workout={w} weekId={week.id}
+                              onEdit={() => !isPending && setWorkoutModal({ weekId: week.id, workout: w })}
+                              onDelete={() => handleDelete(week.id, w.id)}
+                              onDragStart={handleDragStart}
+                            />
+                          ))}
+                        </div>
                       </div>
-
-                      {/* Workout cards */}
-                      <div className="flex-1 px-1.5 pb-1.5 flex flex-col gap-1">
-                        {dayWorkouts.map(w => (
-                          <CalendarCard
-                            key={w.id}
-                            workout={w}
-                            weekId={week.id}
-                            onEdit={() => !isPending && setWorkoutModal({ weekId: week.id, workout: w })}
-                            onDelete={() => handleDelete(week.id, w.id)}
-                            onDragStart={handleDragStart}
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Summary column */}
-                <div className="w-32 flex-shrink-0 border-l border-slate-200 bg-white px-3 py-3 flex flex-col justify-center gap-1">
-                  {wVol > 0 && (
-                    <div>
-                      <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-widest">Distância</span>
-                      <span className="text-sm font-black font-mono text-[#001F3F]">{wVol.toFixed(1)} km</span>
-                    </div>
-                  )}
-                  {wStress > 0 && (
-                    <span className="text-xs font-bold text-sky-600 font-mono">
-                      {wStress.toFixed(1)} ESS
-                    </span>
-                  )}
-                  {(week.workouts || []).length > 0 && (
-                    <span className="text-[10px] text-slate-400">
-                      {(week.workouts || []).length} sessão{(week.workouts || []).length !== 1 ? 'ões' : ''}
-                    </span>
-                  )}
-                  {wVol === 0 && wMins === 0 && (
-                    <span className="text-xs text-slate-200">—</span>
-                  )}
+                    );
+                  })}
+                  <div className="w-32 flex-shrink-0 border-l border-slate-200 bg-white px-3 py-3 flex flex-col justify-center gap-1">
+                    {wVol > 0 && <div><span className="block text-[8px] font-bold text-slate-400 uppercase tracking-widest">Distância</span><span className="text-sm font-black font-mono text-[#001F3F]">{wVol.toFixed(1)} km</span></div>}
+                    {wStress > 0 && <span className="text-xs font-bold text-sky-600 font-mono">{wStress.toFixed(1)} ESS</span>}
+                    {(week.workouts || []).length > 0 && <span className="text-[10px] text-slate-400">{(week.workouts || []).length} sessão{(week.workouts || []).length !== 1 ? 'ões' : ''}</span>}
+                    {wVol === 0 && wMins === 0 && <span className="text-xs text-slate-200">—</span>}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-
-          {allWeeks.length === 0 && (
-            <div className="flex items-center justify-center h-48">
-              <p className="text-sm text-slate-300">Nenhuma semana neste plano.</p>
-            </div>
-          )}
-        </div>
+              );
+            })}
+            {allWeeks.length === 0 && <div className="flex items-center justify-center h-48"><p className="text-sm text-slate-300">Nenhuma semana neste plano.</p></div>}
+          </div>
+        )}
       </div>
 
       {workoutModal !== null && (
@@ -847,6 +971,17 @@ export default function VariantDetail() {
           cycleId={cycle.id}
           variantId={variant.id}
           weekId={workoutModal.weekId}
+        />
+      )}
+
+      {splitWorkoutModal !== null && splitVariant && (
+        <WorkoutForm
+          onClose={() => setSplitWorkoutModal(null)}
+          workout={splitWorkoutModal.workout}
+          defaultDay={splitWorkoutModal.defaultDay ?? splitWorkoutModal.workout?.dayOfWeek}
+          cycleId={cycle.id}
+          variantId={splitVariant.id}
+          weekId={splitWorkoutModal.weekId}
         />
       )}
 
