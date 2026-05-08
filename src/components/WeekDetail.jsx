@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useApp } from '../context/AppContext';
 import { useConfirm } from '../context/ConfirmContext';
 import {
   calcWeekVolume, calcWeekStress, calcWeekZones, calcWorkoutDistance,
   blockDistance, blockDurationMin, flattenBlocks,
-  ZONE_COLORS, SPORT_ICONS, buildPhaseMap
+  ZONE_COLORS, SPORT_ICONS, buildPhaseMap, uuid
 } from '../utils/helpers';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts';
 import WorkoutForm from './WorkoutForm';
@@ -75,7 +75,7 @@ function ChartIcon({ color }) {
 }
 
 // ── Workout card (Final Surge style) ──────────────────────────────────────────
-function WorkoutCard({ workout, onEdit, onDelete }) {
+function WorkoutCard({ workout, onEdit, onDelete, onDragStart }) {
   const blocks    = workout.blocks || [];
   const totalMins = blocks.reduce((s, b) => s + blockDurationMin(b), 0);
   const totalDist = blocks.reduce((s, b) => s + blockDistance(b), 0);
@@ -91,6 +91,8 @@ function WorkoutCard({ workout, onEdit, onDelete }) {
 
   return (
     <div
+      draggable={!!onDragStart}
+      onDragStart={onDragStart}
       className="group relative bg-white rounded-xl border border-slate-100 overflow-hidden hover:shadow-lg transition-all cursor-pointer select-none"
       style={{ borderLeft: `3px solid ${sportColor}` }}
       onClick={onEdit}
@@ -236,18 +238,169 @@ function WeekSummaryBar({ workouts, volume, stress }) {
   );
 }
 
+// ── Week calendar panel (used standalone and in split mode) ───────────────────
+function WeekCalendarPanel({ cycle, variant, week, dragState, onDrop, compact = false }) {
+  const { dispatch } = useApp();
+  const { confirm } = useConfirm();
+  const [workoutModal, setWorkoutModal] = useState(null);
+  const periodOrder = { manha: 0, tarde: 1, noite: 2 };
+  const volume = calcWeekVolume(week?.workouts || []);
+
+  const startDate = week?.startDate ? new Date(week.startDate + 'T12:00:00') : null;
+  function getDayDate(dayOfWeek) {
+    if (!startDate) return null;
+    const d = new Date(startDate);
+    d.setDate(d.getDate() + dayOfWeek);
+    return d.getDate();
+  }
+
+  function handleDelete(id) {
+    confirm({
+      title: 'Excluir sessão?',
+      message: 'Esta ação não pode ser desfeita.',
+      confirmText: 'Excluir',
+      onConfirm: () => dispatch({ type: 'DELETE_WORKOUT', payload: {
+        cycleId: cycle.id, variantId: variant.id, weekId: week.id, workoutId: id,
+      }}),
+    });
+  }
+
+  if (!week) {
+    return (
+      <div className="flex-1 flex items-center justify-center text-slate-300 text-sm bg-[#F8FAFC]">
+        Semana não encontrada nesta variante
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col flex-1 min-w-0 min-h-0">
+      {/* Mini variant header */}
+      <div className="bg-white border-b border-slate-200 px-3 py-2 flex items-center justify-between flex-shrink-0">
+        <div>
+          <p className="text-xs font-black text-[#001F3F] leading-tight">{variant.name}</p>
+          <p className="text-[10px] text-slate-400 font-mono">{volume.toFixed(1)} km · {week.workouts.length} sessões</p>
+        </div>
+        {week.workouts.length > 0 && (
+          <span className="text-[10px] text-slate-400 font-mono">{week.workouts.length} sessões</span>
+        )}
+      </div>
+
+      {/* 7-column grid */}
+      <div className="flex-1 overflow-x-auto bg-[#F8FAFC]">
+        <div className={`grid grid-cols-7 divide-x divide-slate-200 h-full ${compact ? 'min-w-[420px]' : 'min-w-[560px]'}`}>
+          {[0,1,2,3,4,5,6].map(day => {
+            const dayWorkouts = week.workouts
+              .filter(w => w.dayOfWeek === day)
+              .sort((a, b) => (periodOrder[a.period] ?? 0) - (periodOrder[b.period] ?? 0));
+            const dayVol = dayWorkouts.reduce((s, w) => s + calcWorkoutDistance(w), 0);
+            const dayNum = getDayDate(day);
+            const isWeekend = day === 0 || day === 6;
+
+            return (
+              <div key={day}
+                className={`flex flex-col transition-colors ${isWeekend ? 'bg-slate-50/60' : 'bg-white'} ${dragState ? 'hover:bg-blue-50/50' : ''}`}
+                onDragOver={e => { if (dragState?.current) e.preventDefault(); }}
+                onDrop={e => { e.preventDefault(); onDrop?.(day); }}
+              >
+                {/* Day header */}
+                <div className="border-b border-slate-200 px-2 py-2 bg-inherit flex-shrink-0">
+                  <div className="flex items-start justify-between gap-1">
+                    <div>
+                      <div className="text-[9px] font-bold text-slate-400 uppercase tracking-wider leading-none">{DAY_ABBR[day]}</div>
+                      <div className={`font-black leading-none mt-0.5 ${dayNum ? 'text-slate-700' : 'text-slate-200'} ${compact ? 'text-xl' : 'text-3xl'}`}>
+                        {dayNum ?? day + 1}
+                      </div>
+                    </div>
+                    <div className="flex flex-col items-end gap-1 pt-0.5">
+                      <button onClick={() => setWorkoutModal({ defaultDay: day })}
+                        className="w-5 h-5 rounded-full bg-slate-100 hover:bg-[#001F3F] text-slate-400 hover:text-white text-xs font-bold flex items-center justify-center transition-all flex-shrink-0">+</button>
+                      {dayVol > 0 && (
+                        <div className="text-right">
+                          <div className="text-[10px] font-black text-slate-500 font-mono leading-none">{dayVol.toFixed(1)}</div>
+                          <div className="text-[8px] text-slate-400 leading-none">km</div>
+                        </div>
+                      )}
+                      {dayWorkouts.length >= 2 && <div className="text-[8px] text-amber-500 font-bold leading-none">dupla</div>}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Workout cards */}
+                <div className="flex-1 overflow-y-auto p-1.5 space-y-1.5 min-h-[160px]">
+                  {dayWorkouts.length === 0 ? (
+                    <div onClick={() => setWorkoutModal({ defaultDay: day })}
+                      className="h-full min-h-[80px] flex items-center justify-center rounded-xl border border-dashed border-slate-200 cursor-pointer hover:border-slate-300 hover:bg-slate-50/80 transition-colors group">
+                      <span className="text-xs text-slate-200 group-hover:text-slate-400">+ treino</span>
+                    </div>
+                  ) : dayWorkouts.map(w => (
+                    <WorkoutCard
+                      key={w.id}
+                      workout={w}
+                      onEdit={() => setWorkoutModal({ workout: w })}
+                      onDelete={() => handleDelete(w.id)}
+                      onDragStart={dragState ? (e => {
+                        e.dataTransfer.effectAllowed = 'copy';
+                        dragState.current = { workout: w, sourceVariantId: variant.id };
+                      }) : undefined}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {workoutModal !== null && (
+        <WorkoutForm
+          onClose={() => setWorkoutModal(null)}
+          workout={workoutModal.workout}
+          defaultDay={workoutModal.defaultDay}
+          cycleId={cycle.id}
+          variantId={variant.id}
+          weekId={week.id}
+        />
+      )}
+    </div>
+  );
+}
+
 // ── Main view ─────────────────────────────────────────────────────────────────
 export default function WeekDetail() {
   const { state, dispatch, selected } = useApp();
   const { confirm } = useConfirm();
   const [workoutModal, setWorkoutModal] = useState(null);
   const [sidebarTab, setSidebarTab] = useState('weeks');
+  const [splitVariantId, setSplitVariantId] = useState(null);
+  const dragState = useRef(null);
 
   const cycle   = selected.weekCycle;
   const variant = selected.weekVariant;
   const week    = selected.week;
 
   if (!cycle || !variant || !week) return null;
+
+  // Split mode
+  const otherVariants = cycle.variants.filter(v => v.id !== variant.id);
+  const splitVariant  = splitVariantId ? cycle.variants.find(v => v.id === splitVariantId) : null;
+  const splitWeek     = splitVariant?.weeks.find(w => w.weekNumber === week.weekNumber) ?? null;
+
+  function handleDrop(targetVariantId, targetWeekId, day) {
+    if (!dragState.current) return;
+    const { workout, sourceVariantId } = dragState.current;
+    if (sourceVariantId === targetVariantId) return;
+    dispatch({
+      type: 'UPSERT_WORKOUT',
+      payload: {
+        cycleId: cycle.id,
+        variantId: targetVariantId,
+        weekId: targetWeekId,
+        workout: { ...workout, id: uuid(), dayOfWeek: day },
+      },
+    });
+    dragState.current = null;
+  }
 
   const { colors: phaseColors, labels: phaseLabels, list: phaseList } = buildPhaseMap(state.phaseConfig);
   const allWeeks  = variant.weeks || [];
@@ -325,14 +478,40 @@ export default function WeekDetail() {
               </button>
             ))}
           </div>
+
+          {/* Split variant button */}
+          {otherVariants.length > 0 && (
+            <div className="flex items-center gap-2 ml-auto">
+              {splitVariantId ? (
+                <button
+                  onClick={() => setSplitVariantId(null)}
+                  className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:text-red-500 hover:border-red-200 hover:bg-red-50 transition-colors"
+                >
+                  ✕ Fechar split
+                </button>
+              ) : (
+                <>
+                  <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">+ Variante:</span>
+                  <select
+                    defaultValue=""
+                    onChange={e => { if (e.target.value) setSplitVariantId(e.target.value); }}
+                    className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#001F3F]/40 bg-white text-slate-600 font-semibold"
+                  >
+                    <option value="" disabled>Escolher…</option>
+                    {otherVariants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
+                  </select>
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
       {/* ── Body ─────────────────────────────────────────────────────────────── */}
       <div className="flex flex-1 border-x border-slate-200 overflow-hidden min-h-0">
 
-        {/* ── Left sidebar ─────────────────────────────────────────────────── */}
-        <div className="hidden lg:flex flex-col w-52 flex-shrink-0 border-r border-slate-200 bg-white">
+        {/* ── Left sidebar — hidden in split mode ──────────────────────────── */}
+        <div className={`${splitVariantId ? 'hidden' : 'hidden lg:flex'} flex-col w-52 flex-shrink-0 border-r border-slate-200 bg-white`}>
 
           <div className="flex border-b border-slate-100">
             {[{ id: 'weeks', label: 'Semanas' }, { id: 'stats', label: 'Zonas' }].map(tab => (
@@ -438,86 +617,86 @@ export default function WeekDetail() {
           )}
         </div>
 
-        {/* ── 7-column calendar ─────────────────────────────────────────────── */}
-        <div className="flex-1 overflow-x-auto bg-[#F8FAFC]">
-          <div className="grid grid-cols-7 divide-x divide-slate-200 min-w-[600px] h-full">
-            {[0,1,2,3,4,5,6].map(day => {
-              const dayWorkouts = week.workouts
-                .filter(w => w.dayOfWeek === day)
-                .sort((a, b) => (periodOrder[a.period] ?? 0) - (periodOrder[b.period] ?? 0));
-              const dayVol   = dayWorkouts.reduce((s, w) => s + calcWorkoutDistance(w), 0);
-              const dayNum   = getDayDate(day);
-              const isWeekend = day === 0 || day === 6;
+        {/* ── Calendar area: single or split ───────────────────────────────── */}
+        {splitVariantId ? (
+          /* SPLIT MODE: two panels side by side */
+          <div className="flex flex-1 overflow-hidden divide-x divide-slate-300">
+            <WeekCalendarPanel
+              cycle={cycle} variant={variant} week={week}
+              dragState={dragState} compact
+              onDrop={day => handleDrop(variant.id, week.id, day)}
+            />
+            <WeekCalendarPanel
+              cycle={cycle} variant={splitVariant} week={splitWeek}
+              dragState={dragState} compact
+              onDrop={day => splitWeek && handleDrop(splitVariant.id, splitWeek.id, day)}
+            />
+          </div>
+        ) : (
+          /* NORMAL MODE: single calendar */
+          <div className="flex-1 overflow-x-auto bg-[#F8FAFC]">
+            <div className="grid grid-cols-7 divide-x divide-slate-200 min-w-[600px] h-full">
+              {[0,1,2,3,4,5,6].map(day => {
+                const dayWorkouts = week.workouts
+                  .filter(w => w.dayOfWeek === day)
+                  .sort((a, b) => (periodOrder[a.period] ?? 0) - (periodOrder[b.period] ?? 0));
+                const dayVol   = dayWorkouts.reduce((s, w) => s + calcWorkoutDistance(w), 0);
+                const dayNum   = getDayDate(day);
+                const isWeekend = day === 0 || day === 6;
 
-              return (
-                <div key={day} className={`flex flex-col ${isWeekend ? 'bg-slate-50/60' : 'bg-white'}`}>
-
-                  {/* ── Day header (Final Surge style) ── */}
-                  <div className="border-b border-slate-200 px-3 py-2.5 bg-inherit">
-                    <div className="flex items-start justify-between gap-1">
-                      <div>
-                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">
-                          {DAY_ABBR[day]}
+                return (
+                  <div key={day} className={`flex flex-col ${isWeekend ? 'bg-slate-50/60' : 'bg-white'}`}>
+                    <div className="border-b border-slate-200 px-3 py-2.5 bg-inherit">
+                      <div className="flex items-start justify-between gap-1">
+                        <div>
+                          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider leading-none">{DAY_ABBR[day]}</div>
+                          {dayNum ? (
+                            <div className="text-3xl font-black text-slate-700 leading-none mt-0.5">{dayNum}</div>
+                          ) : (
+                            <div className="text-3xl font-black text-slate-200 leading-none mt-0.5">{day + 1}</div>
+                          )}
                         </div>
-                        {dayNum ? (
-                          <div className="text-3xl font-black text-slate-700 leading-none mt-0.5">
-                            {dayNum}
-                          </div>
-                        ) : (
-                          <div className="text-3xl font-black text-slate-200 leading-none mt-0.5">
-                            {day + 1}
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Right side: volume + add button */}
-                      <div className="flex flex-col items-end gap-1.5 pt-0.5">
-                        <button
-                          onClick={() => setWorkoutModal({ defaultDay: day })}
-                          title={`+ sessão`}
-                          className="w-6 h-6 rounded-full bg-slate-100 hover:bg-[#001F3F] text-slate-400 hover:text-white text-sm font-bold flex items-center justify-center transition-all flex-shrink-0"
-                        >+</button>
-                        {dayVol > 0 && (
-                          <div className="text-right">
-                            <div className="text-xs font-black text-slate-500 font-mono leading-none">{dayVol.toFixed(1)}</div>
-                            <div className="text-[9px] text-slate-400 leading-none">km</div>
-                          </div>
-                        )}
-                        {dayWorkouts.length >= 2 && (
-                          <div className="text-[9px] text-amber-500 font-bold leading-none">dupla</div>
-                        )}
+                        <div className="flex flex-col items-end gap-1.5 pt-0.5">
+                          <button onClick={() => setWorkoutModal({ defaultDay: day })}
+                            title="+ sessão"
+                            className="w-6 h-6 rounded-full bg-slate-100 hover:bg-[#001F3F] text-slate-400 hover:text-white text-sm font-bold flex items-center justify-center transition-all flex-shrink-0"
+                          >+</button>
+                          {dayVol > 0 && (
+                            <div className="text-right">
+                              <div className="text-xs font-black text-slate-500 font-mono leading-none">{dayVol.toFixed(1)}</div>
+                              <div className="text-[9px] text-slate-400 leading-none">km</div>
+                            </div>
+                          )}
+                          {dayWorkouts.length >= 2 && (
+                            <div className="text-[9px] text-amber-500 font-bold leading-none">dupla</div>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[220px]">
+                      {dayWorkouts.length === 0 ? (
+                        <div onClick={() => setWorkoutModal({ defaultDay: day })}
+                          className="h-full min-h-[100px] flex items-center justify-center rounded-xl border border-dashed border-slate-200 cursor-pointer hover:border-slate-300 hover:bg-slate-50/80 transition-colors group">
+                          <span className="text-xs text-slate-200 group-hover:text-slate-400 transition-colors">+ treino</span>
+                        </div>
+                      ) : (
+                        dayWorkouts.map(w => (
+                          <WorkoutCard key={w.id} workout={w}
+                            onEdit={() => setWorkoutModal({ workout: w })}
+                            onDelete={() => handleDeleteWorkout(w.id)}
+                          />
+                        ))
+                      )}
+                    </div>
                   </div>
-
-                  {/* ── Workout cards ── */}
-                  <div className="flex-1 overflow-y-auto p-2 space-y-2 min-h-[220px]">
-                    {dayWorkouts.length === 0 ? (
-                      <div
-                        onClick={() => setWorkoutModal({ defaultDay: day })}
-                        className="h-full min-h-[100px] flex items-center justify-center rounded-xl border border-dashed border-slate-200 cursor-pointer hover:border-slate-300 hover:bg-slate-50/80 transition-colors group"
-                      >
-                        <span className="text-xs text-slate-200 group-hover:text-slate-400 transition-colors">+ treino</span>
-                      </div>
-                    ) : (
-                      dayWorkouts.map(w => (
-                        <WorkoutCard
-                          key={w.id}
-                          workout={w}
-                          onEdit={() => setWorkoutModal({ workout: w })}
-                          onDelete={() => handleDeleteWorkout(w.id)}
-                        />
-                      ))
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
       </div>
 
-      {/* ── Bottom summary bar (Final Surge "Planned vs Completed" style) ──── */}
+      {/* ── Bottom summary bar ────────────────────────────────────────────────── */}
       <div className="border-x border-b border-slate-200 rounded-b-2xl overflow-hidden flex-shrink-0">
         <WeekSummaryBar workouts={week.workouts} volume={volume} stress={stress} />
       </div>
