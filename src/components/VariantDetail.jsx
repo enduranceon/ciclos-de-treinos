@@ -358,6 +358,7 @@ export default function VariantDetail() {
   const [weekClipboard, setWeekClipboard] = useState(null); // { sourceWeekNumber, phase, workouts }
   const [dayClipboard, setDayClipboard]   = useState(null); // { sourceWeekNumber, sourceDow, workouts }
   const [splitVariantId, setSplitVariantId] = useState(null);
+  const [splitCycleId, setSplitCycleId]     = useState(null);
   const [splitAiContext, setSplitAiContext] = useState(null);
   const dragPayload                       = useRef(null);
 
@@ -369,9 +370,11 @@ export default function VariantDetail() {
   const allWeeks      = variant.weeks || [];
   const totalSessions = allWeeks.reduce((s, w) => s + (w.workouts || []).length, 0);
 
-  // Split mode
-  const otherVariants = cycle.variants.filter(v => v.id !== variant.id);
-  const splitVariant  = splitVariantId ? cycle.variants.find(v => v.id === splitVariantId) : null;
+  // Split mode — can be any variant from any cycle
+  const splitCycle   = splitCycleId ? (state.cycles || []).find(c => c.id === splitCycleId) : null;
+  const splitVariant = splitVariantId && splitCycle
+    ? splitCycle.variants.find(v => v.id === splitVariantId)
+    : null;
 
   // ── Drag handlers ──────────────────────────────────────────────────────────
   function handleDragStart(payload) {
@@ -391,12 +394,13 @@ export default function VariantDetail() {
     }
   }
 
-  function handleDrop(e, week, dow, targetVariantId) {
+  function handleDrop(e, week, dow, targetVariantId, targetCycleId) {
     e.preventDefault();
     setDragOver(null);
     const payload = dragPayload.current;
     if (!payload) return;
     dragPayload.current = null;
+    const tCycleId   = targetCycleId || cycle.id;
     const tVariantId = targetVariantId || variant.id;
 
     if (payload.type === 'library') {
@@ -404,7 +408,7 @@ export default function VariantDetail() {
       dispatch({
         type: 'UPSERT_WORKOUT',
         payload: {
-          cycleId: cycle.id, variantId: tVariantId, weekId: week.id,
+          cycleId: tCycleId, variantId: tVariantId, weekId: week.id,
           workout: {
             id: uuid(), dayOfWeek: dow, period: 'manha',
             title: item.name, type: item.sport || 'corrida',
@@ -415,15 +419,13 @@ export default function VariantDetail() {
         },
       });
     } else if (payload.type === 'workout') {
-      const { workout, fromWeekId, fromVariantId } = payload;
-      const crossVariant = fromVariantId && fromVariantId !== tVariantId;
+      const { workout, fromWeekId, fromVariantId, fromCycleId } = payload;
+      const crossVariant = fromVariantId && (fromVariantId !== tVariantId || (fromCycleId && fromCycleId !== tCycleId));
       if (!crossVariant && fromWeekId === week.id && workout.dayOfWeek === dow) return;
       if (!crossVariant) {
-        // same variant: move
-        dispatch({ type: 'DELETE_WORKOUT', payload: { cycleId: cycle.id, variantId: tVariantId, weekId: fromWeekId, workoutId: workout.id } });
+        dispatch({ type: 'DELETE_WORKOUT', payload: { cycleId: tCycleId, variantId: tVariantId, weekId: fromWeekId, workoutId: workout.id } });
       }
-      // cross-variant: copy (don't delete source)
-      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId: cycle.id, variantId: tVariantId, weekId: week.id, workout: { ...workout, id: crossVariant ? uuid() : workout.id, dayOfWeek: dow } } });
+      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId: tCycleId, variantId: tVariantId, weekId: week.id, workout: { ...workout, id: crossVariant ? uuid() : workout.id, dayOfWeek: dow } } });
     }
   }
 
@@ -432,18 +434,18 @@ export default function VariantDetail() {
       title: 'Excluir sessão?',
       message: 'Esta ação não pode ser desfeita.',
       confirmText: 'Excluir',
-      onConfirm: () => dispatch({ type: 'DELETE_WORKOUT', payload: { cycleId: cycle.id, variantId: splitVariant.id, weekId, workoutId } }),
+      onConfirm: () => dispatch({ type: 'DELETE_WORKOUT', payload: { cycleId: splitCycle.id, variantId: splitVariant.id, weekId, workoutId } }),
     });
   }
 
   function pasteWeekToSplitVariant(targetWeek) {
-    if (!weekClipboard || !splitVariant) return;
+    if (!weekClipboard || !splitVariant || !splitCycle) return;
     (weekClipboard.workouts || []).forEach(workout => {
       const cloned = cloneWithFreshIds(workout);
-      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId: cycle.id, variantId: splitVariant.id, weekId: targetWeek.id, workout: cloned } });
+      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId: splitCycle.id, variantId: splitVariant.id, weekId: targetWeek.id, workout: cloned } });
     });
     if (weekClipboard.phase) {
-      dispatch({ type: 'UPDATE_WEEK', payload: { cycleId: cycle.id, variantId: splitVariant.id, weekId: targetWeek.id, phase: weekClipboard.phase } });
+      dispatch({ type: 'UPDATE_WEEK', payload: { cycleId: splitCycle.id, variantId: splitVariant.id, weekId: targetWeek.id, phase: weekClipboard.phase } });
     }
   }
 
@@ -524,10 +526,10 @@ export default function VariantDetail() {
   }
 
   function pasteDaySplit(targetWeek, targetDow) {
-    if (!dayClipboard || !splitVariant) return;
+    if (!dayClipboard || !splitVariant || !splitCycle) return;
     (dayClipboard.workouts || []).forEach(workout => {
       const cloned = { ...cloneWithFreshIds(workout), dayOfWeek: targetDow };
-      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId: cycle.id, variantId: splitVariant.id, weekId: targetWeek.id, workout: cloned } });
+      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId: splitCycle.id, variantId: splitVariant.id, weekId: targetWeek.id, workout: cloned } });
     });
   }
 
@@ -607,27 +609,38 @@ export default function VariantDetail() {
             />
 
             {/* Split variant selector */}
-            {otherVariants.length > 0 && (
-              splitVariantId ? (
-                <button
-                  onClick={() => setSplitVariantId(null)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-300 bg-slate-100 text-slate-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-all"
+            {(splitVariantId && splitCycle) ? (
+              <button
+                onClick={() => { setSplitVariantId(null); setSplitCycleId(null); }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold border border-slate-300 bg-slate-100 text-slate-600 hover:border-red-300 hover:bg-red-50 hover:text-red-600 transition-all"
+              >
+                ✕ Fechar split
+              </button>
+            ) : (
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">⟷</span>
+                <select
+                  defaultValue=""
+                  onChange={e => {
+                    if (!e.target.value) return;
+                    const [cId, vId] = e.target.value.split('::');
+                    setSplitCycleId(cId);
+                    setSplitVariantId(vId);
+                  }}
+                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#001F3F]/40 bg-white text-slate-600 font-semibold max-w-[220px]"
                 >
-                  ✕ Fechar split
-                </button>
-              ) : (
-                <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-400 font-semibold whitespace-nowrap">⟷</span>
-                  <select
-                    defaultValue=""
-                    onChange={e => { if (e.target.value) setSplitVariantId(e.target.value); }}
-                    className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-[#001F3F]/40 bg-white text-slate-600 font-semibold"
-                  >
-                    <option value="" disabled>Abrir variante ao lado…</option>
-                    {otherVariants.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}
-                  </select>
-                </div>
-              )
+                  <option value="" disabled>Abrir variante ao lado…</option>
+                  {(state.cycles || []).map(c => (
+                    <optgroup key={c.id} label={c.name}>
+                      {(c.variants || [])
+                        .filter(v => !(c.id === cycle.id && v.id === variant.id))
+                        .map(v => (
+                          <option key={v.id} value={`${c.id}::${v.id}`}>{v.name}</option>
+                        ))}
+                    </optgroup>
+                  ))}
+                </select>
+              </div>
             )}
           </div>
           {(weekClipboard || dayClipboard) && (
@@ -768,7 +781,7 @@ export default function VariantDetail() {
                           onDragOver={e => handleDragOver(e, cellKey)}
                           onDragEnter={e => { e.preventDefault(); setDragOver(cellKey); }}
                           onDragLeave={e => handleDragLeave(e, cellKey)}
-                          onDrop={e => handleDrop(e, week, dow, variant.id)}
+                          onDrop={e => handleDrop(e, week, dow, variant.id, cycle.id)}
                         >
                           <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
                             <div className="flex items-baseline gap-1">
@@ -789,7 +802,7 @@ export default function VariantDetail() {
                               <CalendarCard key={w.id} workout={w} weekId={week.id}
                                 onEdit={() => !pending && setWorkoutModal({ weekId: week.id, workout: w })}
                                 onDelete={() => handleDelete(week.id, w.id)}
-                                onDragStart={p => handleDragStart({ ...p, fromVariantId: variant.id })}
+                                onDragStart={p => handleDragStart({ ...p, fromVariantId: variant.id, fromCycleId: cycle.id })}
                               />
                             ))}
                           </div>
@@ -813,7 +826,10 @@ export default function VariantDetail() {
             {/* RIGHT: split variant */}
             <div className="flex-1 overflow-auto bg-blue-50/10 min-w-0">
               <div className="sticky top-0 z-20 flex bg-white border-b-2 border-blue-200 shadow-sm">
-                <div className="w-20 flex-shrink-0 border-r border-slate-200 px-2 py-2 flex items-end bg-blue-50/30">
+                <div className="w-20 flex-shrink-0 border-r border-slate-200 px-2 py-2 flex flex-col justify-end bg-blue-50/30">
+                  {splitCycle.id !== cycle.id && (
+                    <span className="text-[8px] text-blue-400 font-semibold truncate leading-none mb-0.5">{splitCycle.name}</span>
+                  )}
                   <span className="text-[10px] font-black text-[#001F3F] uppercase tracking-wider truncate">{splitVariant.name}</span>
                 </div>
                 {COL_LABELS.map((lbl, i) => (
@@ -858,7 +874,7 @@ export default function VariantDetail() {
                           onDragOver={e => { e.preventDefault(); setDragOver(cellKey); }}
                           onDragEnter={e => { e.preventDefault(); setDragOver(cellKey); }}
                           onDragLeave={e => handleDragLeave(e, cellKey)}
-                          onDrop={e => handleDrop(e, sWeek, dow, splitVariant.id)}
+                          onDrop={e => handleDrop(e, sWeek, dow, splitVariant.id, splitCycle.id)}
                         >
                           <div className="flex items-center justify-between px-2 pt-1.5 pb-1">
                             <div className="flex items-baseline gap-1">
@@ -877,7 +893,7 @@ export default function VariantDetail() {
                               <CalendarCard key={w.id} workout={w} weekId={sWeek.id}
                                 onEdit={() => setSplitWorkoutModal({ weekId: sWeek.id, workout: w })}
                                 onDelete={() => handleDeleteSplit(sWeek.id, w.id)}
-                                onDragStart={p => handleDragStart({ ...p, fromVariantId: splitVariant.id })}
+                                onDragStart={p => handleDragStart({ ...p, fromVariantId: splitVariant.id, fromCycleId: splitCycle.id })}
                               />
                             ))}
                           </div>
@@ -1009,12 +1025,12 @@ export default function VariantDetail() {
         />
       )}
 
-      {splitWorkoutModal !== null && splitVariant && (
+      {splitWorkoutModal !== null && splitVariant && splitCycle && (
         <WorkoutForm
           onClose={() => setSplitWorkoutModal(null)}
           workout={splitWorkoutModal.workout}
           defaultDay={splitWorkoutModal.defaultDay ?? splitWorkoutModal.workout?.dayOfWeek}
-          cycleId={cycle.id}
+          cycleId={splitCycle.id}
           variantId={splitVariant.id}
           weekId={splitWorkoutModal.weekId}
         />
@@ -1040,9 +1056,9 @@ export default function VariantDetail() {
         />
       )}
 
-      {splitAiContext && splitVariant && (
+      {splitAiContext && splitVariant && splitCycle && (
         <AIWorkoutBuilder
-          context={{ cycleId: cycle.id, variantId: splitVariant.id, ...splitAiContext }}
+          context={{ cycleId: splitCycle.id, variantId: splitVariant.id, ...splitAiContext }}
           onClose={() => setSplitAiContext(null)}
           onOpenEditor={generated => {
             setSplitWorkoutModal({
