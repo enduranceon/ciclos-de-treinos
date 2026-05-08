@@ -55,6 +55,8 @@ function reducer(state, action) {
       return { ...state, view: 'settings' };
     case 'GO_STUDIO':
       return { ...state, view: 'studio' };
+    case 'GO_LAB':
+      return { ...state, view: 'lab' };
 
     // ── Cycles ───────────────────────────────────────────────────────────────
     case 'CREATE_CYCLE': {

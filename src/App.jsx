@@ -12,6 +12,7 @@ import PrescriptionView from './components/PrescriptionView';
 import SettingsView from './components/SettingsView';
 import LibraryStudioView from './components/LibraryStudioView';
 import LoginView from './components/LoginView';
+import LabView from './components/LabView';
 import './index.css';
 
 function AppContent() {
@@ -27,6 +28,7 @@ function AppContent() {
       {state.view === 'prescription' && <PrescriptionView />}
       {state.view === 'settings'     && <SettingsView />}
       {state.view === 'studio'       && <LibraryStudioView />}
+      {state.view === 'lab'          && <LabView />}
     </Layout>
   );
 }
