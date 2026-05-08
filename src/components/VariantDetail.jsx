@@ -857,11 +857,14 @@ export default function VariantDetail() {
                           <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: phaseColor }} />
                           <span className="font-bold leading-none truncate block min-w-0" style={{ color: phaseColor, fontSize: '9px' }}>{phaseLabels[sWeek.phase] || '—'}</span>
                         </div>
-                        {weekClipboard && (
-                          <button onClick={e => { e.stopPropagation(); pasteWeekToSplitVariant(sWeek); }}
-                            className="w-full px-1 py-0.5 rounded-md border border-blue-200 text-[9px] font-bold text-blue-600 hover:bg-blue-50 transition-colors opacity-0 group-hover/srow:opacity-100"
-                            title="Colar semana da outra variante aqui">← Colar</button>
-                        )}
+                        <div className="flex items-center gap-1 opacity-0 group-hover/srow:opacity-100 transition-opacity">
+                          <button onClick={e => { e.stopPropagation(); copyWeek(sWeek); }}
+                            className="flex-1 px-1 py-0.5 rounded-md border border-slate-200 text-[9px] font-bold text-slate-500 hover:text-[#001F3F] hover:border-slate-300"
+                            title="Copiar semana">Cop.</button>
+                          <button onClick={e => { e.stopPropagation(); pasteWeekToSplitVariant(sWeek); }} disabled={!weekClipboard}
+                            className="flex-1 px-1 py-0.5 rounded-md border text-[9px] font-bold transition-colors disabled:opacity-30 disabled:cursor-not-allowed border-blue-200 text-blue-600 hover:bg-blue-50"
+                            title="Colar semana aqui">Col.</button>
+                        </div>
                       </div>
                     </div>
                     {COL_DAYS.map((dow, colIdx) => {
