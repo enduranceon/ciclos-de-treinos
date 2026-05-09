@@ -423,12 +423,24 @@ const SUPABASE_KEY = 'sb_publishable_pIBbWPeeC9rhd1-DrWU0SQ_ef0waSCV';
 
 export function AppProvider({ children, userId }) {
   const [state, dispatch] = useReducer(reducer, null, loadState);
-  const saveTimer    = useRef(null);
-  const stateRef     = useRef(state);
-  const remoteLoaded = useRef(false); // guard: only allow unload-save after remote data is confirmed
+  const saveTimer      = useRef(null);
+  const stateRef       = useRef(state);
+  const remoteLoaded   = useRef(false); // guard: only allow unload-save after remote data is confirmed
+  const localUpdatedAt = useRef(0);    // timestamp of last local save — used to detect newer local data
 
   // Keep ref in sync so beforeunload always sees latest state
   useEffect(() => { stateRef.current = state; });
+
+  // Seed localUpdatedAt from localStorage on mount (once)
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        localUpdatedAt.current = parsed.updatedAt || 0;
+      }
+    } catch (_) {}
+  }, []);
 
   // Flush to Supabase on page unload — only after remote data has loaded
   useEffect(() => {
@@ -437,7 +449,7 @@ export function AppProvider({ children, userId }) {
       if (!remoteLoaded.current) return; // never overwrite with pre-load state
       const s = stateRef.current;
       const payload = JSON.stringify({
-        coach_id: userId,
+        coach_id:         userId,
         cycles:           s.cycles,
         athletes:         s.athletes,
         prescriptions:    s.prescriptions,
@@ -446,6 +458,7 @@ export function AppProvider({ children, userId }) {
         zone_config:      s.zoneConfig,
         race_pace_config: s.racePaceConfig,
         phase_config:     s.phaseConfig,
+        updated_at:       new Date().toISOString(),
       });
       fetch(`${SUPABASE_URL}/rest/v1/coach_data`, {
         method: 'POST',
@@ -463,6 +476,33 @@ export function AppProvider({ children, userId }) {
     return () => window.removeEventListener('beforeunload', onBeforeUnload);
   }, [userId]);
 
+  // Sync data from other tabs via localStorage storage event
+  useEffect(() => {
+    function onStorageChange(e) {
+      if (e.key !== STORAGE_KEY || !e.newValue || !remoteLoaded.current) return;
+      try {
+        const saved = JSON.parse(e.newValue);
+        const otherTs = saved.updatedAt || 0;
+        if (otherTs > localUpdatedAt.current) {
+          localUpdatedAt.current = otherTs;
+          // Sync only data fields — keep this tab's own navigation intact
+          dispatch({ type: 'LOAD_REMOTE', payload: mergeWithDefaults({
+            cycles:        saved.cycles        ?? [],
+            athletes:      saved.athletes      ?? [],
+            prescriptions: saved.prescriptions ?? [],
+            workoutLibrary: saved.workoutLibrary ?? [],
+            libraryFolders: saved.libraryFolders ?? [],
+            zoneConfig:    saved.zoneConfig    ?? DEFAULT_ZONE_CONFIG,
+            racePaceConfig: saved.racePaceConfig ?? DEFAULT_RACE_PACE_CONFIG,
+            phaseConfig:   saved.phaseConfig   ?? DEFAULT_PHASE_CONFIG,
+          }) });
+        }
+      } catch (_) {}
+    }
+    window.addEventListener('storage', onStorageChange);
+    return () => window.removeEventListener('storage', onStorageChange);
+  }, []);
+
   // Load from Supabase when userId is available
   useEffect(() => {
     if (!userId) return;
@@ -472,26 +512,40 @@ export function AppProvider({ children, userId }) {
       .eq('coach_id', userId)
       .single()
       .then(({ data, error }) => {
-        if (error && error.code !== 'PGRST116') return; // PGRST116 = no rows
-        if (data) {
-          dispatch({ type: 'LOAD_REMOTE', payload: mergeWithDefaults({
-            cycles:          data.cycles          ?? [],
-            athletes:        data.athletes        ?? [],
-            prescriptions:   data.prescriptions   ?? [],
-            workoutLibrary:  data.workout_library  ?? [],
-            libraryFolders:  data.library_folders  ?? [],
-            zoneConfig:      data.zone_config      ?? DEFAULT_ZONE_CONFIG,
-            racePaceConfig:  data.race_pace_config ?? DEFAULT_RACE_PACE_CONFIG,
-            phaseConfig:     data.phase_config     ?? DEFAULT_PHASE_CONFIG,
-          }) });
+        if (error && error.code !== 'PGRST116') {
+          // Network/server error — local state is fine, allow beforeunload to save
+          remoteLoaded.current = true;
+          return;
         }
-        remoteLoaded.current = true; // mark as safe — even if no rows found
+        if (data) {
+          const remoteTs = data.updated_at ? new Date(data.updated_at).getTime() : 0;
+          // Only apply remote data if it is strictly newer than what we have locally.
+          // This prevents a slow Supabase response from overwriting changes the user
+          // already made since the page loaded.
+          if (remoteTs > localUpdatedAt.current) {
+            localUpdatedAt.current = remoteTs;
+            dispatch({ type: 'LOAD_REMOTE', payload: mergeWithDefaults({
+              cycles:          data.cycles          ?? [],
+              athletes:        data.athletes        ?? [],
+              prescriptions:   data.prescriptions   ?? [],
+              workoutLibrary:  data.workout_library  ?? [],
+              libraryFolders:  data.library_folders  ?? [],
+              zoneConfig:      data.zone_config      ?? DEFAULT_ZONE_CONFIG,
+              racePaceConfig:  data.race_pace_config ?? DEFAULT_RACE_PACE_CONFIG,
+              phaseConfig:     data.phase_config     ?? DEFAULT_PHASE_CONFIG,
+            }) });
+          }
+        }
+        remoteLoaded.current = true;
       });
   }, [userId]);
 
   // Debounced save to Supabase + localStorage
   const saveData = useCallback((s) => {
-    const payload = {
+    const now = Date.now();
+    localUpdatedAt.current = now;
+
+    const supabasePayload = {
       cycles:           s.cycles,
       athletes:         s.athletes,
       prescriptions:    s.prescriptions,
@@ -500,21 +554,35 @@ export function AppProvider({ children, userId }) {
       zone_config:      s.zoneConfig,
       race_pace_config: s.racePaceConfig,
       phase_config:     s.phaseConfig,
+      updated_at:       new Date(now).toISOString(),
     };
 
-    // Always persist locally as backup
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      cycles: s.cycles, athletes: s.athletes, prescriptions: s.prescriptions,
-      workoutLibrary: s.workoutLibrary, libraryFolders: s.libraryFolders,
-      zoneConfig: s.zoneConfig, racePaceConfig: s.racePaceConfig,
-      phaseConfig: s.phaseConfig,
-      view: s.view,
-      selectedCycleId: s.selectedCycleId,
-      selectedVariantId: s.selectedVariantId,
-      selectedWeekId: s.selectedWeekId,
-      selectedAthleteId: s.selectedAthleteId,
-      selectedPrescriptionId: s.selectedPrescriptionId,
-    })); } catch (_) {}
+    // Always persist locally as backup — timestamp included so LOAD_REMOTE can compare
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+        cycles: s.cycles, athletes: s.athletes, prescriptions: s.prescriptions,
+        workoutLibrary: s.workoutLibrary, libraryFolders: s.libraryFolders,
+        zoneConfig: s.zoneConfig, racePaceConfig: s.racePaceConfig,
+        phaseConfig: s.phaseConfig,
+        updatedAt: now,
+        view: s.view,
+        selectedCycleId: s.selectedCycleId,
+        selectedVariantId: s.selectedVariantId,
+        selectedWeekId: s.selectedWeekId,
+        selectedAthleteId: s.selectedAthleteId,
+        selectedPrescriptionId: s.selectedPrescriptionId,
+      }));
+    } catch (e) {
+      // localStorage quota exceeded — force immediate Supabase save as fallback
+      console.warn('[EON] localStorage cheio, salvando direto no Supabase', e);
+      if (userId) {
+        supabase
+          .from('coach_data')
+          .upsert({ coach_id: userId, ...supabasePayload }, { onConflict: 'coach_id' })
+          .then(({ error }) => { if (error) console.warn('[EON] Supabase fallback error', error); });
+      }
+      return;
+    }
 
     // Debounce Supabase write (1.5s)
     if (!userId) return;
@@ -522,8 +590,8 @@ export function AppProvider({ children, userId }) {
     saveTimer.current = setTimeout(() => {
       supabase
         .from('coach_data')
-        .upsert({ coach_id: userId, ...payload }, { onConflict: 'coach_id' })
-        .then(({ error }) => { if (error) console.warn('Supabase save error', error); });
+        .upsert({ coach_id: userId, ...supabasePayload }, { onConflict: 'coach_id' })
+        .then(({ error }) => { if (error) console.warn('[EON] Supabase save error', error); });
     }, 1500);
   }, [userId]);
 
