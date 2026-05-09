@@ -4,7 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import { supabase } from '../lib/supabase';
 import { uuid, blockDistance, blockDurationMin, DEFAULT_RACE_PACE_CONFIG } from '../utils/helpers';
 
-const ANTHROPIC_API_BASE_URL = (import.meta.env.VITE_ANTHROPIC_API_BASE_URL || '/anthropic').replace(/\/$/, '');
+const EDGE_FUNCTION_URL = 'https://tcdoxeduhwyvhkxwrymj.supabase.co/functions/v1/anthropic-proxy';
 
 const SMALL_WORDS = new Set(['a', 'e', 'o', 'as', 'os', 'da', 'de', 'do', 'das', 'dos']);
 const PORTUGUESE_DIACRITICS = {
@@ -992,20 +992,12 @@ export default function AIWorkoutBuilder({ context, onClose, onOpenEditor, mode 
   const [answers, setAnswers]               = useState({});   // {q1: '...'}
   const textareaRef = useRef(null);
 
-  const apiKey = state.anthropicApiKey;
-  const hasKey = apiKey && apiKey.trim().length > 10;
-
   // ── Call API ──────────────────────────────────────────────────────────────
   async function callAPI(userMessage) {
     const racePaceRuleText = buildRacePaceRuleText(state.racePaceConfig);
-    const res = await fetch(`${ANTHROPIC_API_BASE_URL}/v1/messages`, {
+    const res = await fetch(EDGE_FUNCTION_URL, {
       method: 'POST',
-      headers: {
-        'x-api-key': apiKey.trim(),
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
+      headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
         max_tokens: 2048,
@@ -1015,9 +1007,6 @@ export default function AIWorkoutBuilder({ context, onClose, onOpenEditor, mode 
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      if (res.status === 404 && ANTHROPIC_API_BASE_URL === '/anthropic') {
-        throw new Error('Endpoint da Anthropic indisponivel neste ambiente. Configure VITE_ANTHROPIC_API_BASE_URL ou um proxy /anthropic no deploy.');
-      }
       throw new Error(err.error?.message || `Erro ${res.status}`);
     }
     const data = await res.json();
@@ -1043,7 +1032,7 @@ export default function AIWorkoutBuilder({ context, onClose, onOpenEditor, mode 
 
   // ── First generate: may return clarifications or workout ─────────────────
   async function handleGenerate() {
-    if (!prompt.trim() || !hasKey) return;
+    if (!prompt.trim()) return;
     setLoading(true);
     setError(null);
     setGenerated(null);
@@ -1208,13 +1197,6 @@ export default function AIWorkoutBuilder({ context, onClose, onOpenEditor, mode 
 
         <div className="flex-1 overflow-y-auto p-6 space-y-4">
 
-          {/* No API key */}
-          {!hasKey && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
-              <p className="text-sm font-semibold text-amber-700">🔑 Chave da API não configurada</p>
-              <p className="text-xs text-amber-600 mt-1">Acesse <strong>⚙️ Config. → 🤖 Construtor IA</strong> e cadastre sua chave Anthropic.</p>
-            </div>
-          )}
 
           {/* ── INPUT PHASE ── */}
           {showInput && (
@@ -1232,9 +1214,6 @@ export default function AIWorkoutBuilder({ context, onClose, onOpenEditor, mode 
                   disabled={loading}
                 />
                 <p className="text-[10px] text-slate-300">⌘+Enter para gerar</p>
-                <p className="text-[10px] text-slate-300">
-                  Em producao, este recurso precisa de um endpoint Anthropic em <span className="font-mono">/anthropic</span> ou da env <span className="font-mono">VITE_ANTHROPIC_API_BASE_URL</span>.
-                </p>
               </div>
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">Exemplos</p>
@@ -1346,7 +1325,7 @@ export default function AIWorkoutBuilder({ context, onClose, onOpenEditor, mode 
               {!isPanel && <button onClick={onClose} className="btn-secondary">Cancelar</button>}
               <button
                 onClick={handleGenerate}
-                disabled={!prompt.trim() || !hasKey || loading}
+                disabled={!prompt.trim() || loading}
                 className="flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-sm text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ background: 'linear-gradient(135deg,#001F3F,#0a3a6e)' }}
               >

@@ -352,83 +352,28 @@ function RacePacesTab() {
 
 // ── AI tab ────────────────────────────────────────────────────────────────────
 function AITab() {
-  const { state, dispatch } = useApp();
-  const [key, setKey] = useState(state.anthropicApiKey || '');
-  const [show, setShow] = useState(false);
-  const [saved, setSaved] = useState(false);
-
-  function handleSave() {
-    dispatch({ type: 'SET_API_KEY', payload: key.trim() });
-    setSaved(true);
-  }
-
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-base font-black text-[#001F3F]">🤖 Construtor com IA</h2>
         <p className="text-xs text-slate-400 mt-0.5">
-          Use o Claude para gerar treinos em linguagem natural. Sua chave fica salva só no seu navegador.
+          Use o Claude para gerar treinos em linguagem natural.
         </p>
       </div>
 
-      {/* How it works */}
       <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 space-y-2">
         <p className="text-xs font-bold text-blue-700">Como funciona</p>
         <ul className="space-y-1 text-xs text-blue-600">
-          <li>1. Cadastre sua chave da API Anthropic abaixo</li>
-          <li>2. Dentro de uma variante, clique em <strong>✨ Gerar com IA</strong> ao criar um treino</li>
-          <li>3. Descreva o treino em português — ex: <em>"aquecimento 3km z1, 10×800m z4 com 400m trote de descanso, volta à calma 1km z1"</em></li>
-          <li>4. O assistente monta a estrutura completa — você revisa e salva</li>
+          <li>1. Dentro de uma variante, clique em <strong>✨ Gerar com IA</strong> ao criar um treino</li>
+          <li>2. Descreva o treino em português — ex: <em>"aquecimento 3km z1, 10×800m z4 com 400m trote de descanso, volta à calma 1km z1"</em></li>
+          <li>3. O assistente monta a estrutura completa — você revisa e salva</li>
         </ul>
       </div>
 
-      {/* API key input */}
-      <div className="space-y-2">
-        <label className="text-sm font-semibold text-[#001F3F]">Chave da API Anthropic</label>
-        <p className="text-xs text-slate-400">
-          Obtenha em{' '}
-          <a href="https://console.anthropic.com/keys" target="_blank" rel="noreferrer"
-            className="text-blue-500 hover:underline">console.anthropic.com/keys</a>
-        </p>
-        <div className="flex gap-2">
-          <div className="relative flex-1">
-            <input
-              type={show ? 'text' : 'password'}
-              value={key}
-              onChange={e => { setKey(e.target.value); setSaved(false); }}
-              placeholder="sk-ant-..."
-              className="w-full px-3 py-2.5 text-sm border border-slate-200 rounded-xl focus:outline-none focus:border-[#001F3F]/40 font-mono pr-20"
-            />
-            <button
-              onClick={() => setShow(s => !s)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-slate-400 hover:text-slate-600"
-            >
-              {show ? 'ocultar' : 'mostrar'}
-            </button>
-          </div>
-        </div>
-        {key && (
-          <div className="flex items-center gap-2 mt-1">
-            <div className={`w-2 h-2 rounded-full ${key.startsWith('sk-ant-') ? 'bg-green-400' : 'bg-amber-400'}`} />
-            <span className="text-xs text-slate-500">
-              {key.startsWith('sk-ant-') ? 'Formato válido' : 'Formato esperado: sk-ant-...'}
-            </span>
-          </div>
-        )}
-      </div>
-
-      <div className="pt-3 border-t border-slate-100 space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-xs text-slate-300">Armazenado somente no seu navegador (localStorage)</span>
-          <div className="flex items-center gap-3">
-            {saved && <span className="text-xs text-green-500 font-semibold">✓ Salvo!</span>}
-            <button onClick={handleSave} className="btn-primary text-sm px-5">
-              Salvar Chave
-            </button>
-          </div>
-        </div>
-        <p className="text-xs text-amber-600">
-          Fora do ambiente local, o deploy tambem precisa expor um proxy <span className="font-mono">/anthropic</span> ou definir <span className="font-mono">VITE_ANTHROPIC_API_BASE_URL</span>.
+      <div className="bg-green-50 border border-green-100 rounded-xl p-4">
+        <p className="text-xs font-bold text-green-700">✅ Pronto para usar</p>
+        <p className="text-xs text-green-600 mt-1">
+          A IA está configurada e disponível — nenhuma chave necessária da sua parte.
         </p>
       </div>
     </div>

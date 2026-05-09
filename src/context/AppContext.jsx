@@ -23,8 +23,6 @@ const initialState = {
   zoneConfig: DEFAULT_ZONE_CONFIG,   // zone % ranges
   racePaceConfig: DEFAULT_RACE_PACE_CONFIG, // race-pace % ranges used by AI
   phaseConfig: DEFAULT_PHASE_CONFIG, // training period definitions
-  anthropicApiKey: '',               // user-provided Claude API key
-
   view: 'cycles',
   selectedCycleId: null,
   selectedVariantId: null,
@@ -395,10 +393,6 @@ function reducer(state, action) {
       return { ...state, phaseConfig: action.payload };
     }
 
-    case 'SET_API_KEY': {
-      return { ...state, anthropicApiKey: action.payload };
-    }
-
     case 'LOAD_REMOTE':
       return { ...state, ...action.payload };
 
@@ -452,7 +446,6 @@ export function AppProvider({ children, userId }) {
         zone_config:      s.zoneConfig,
         race_pace_config: s.racePaceConfig,
         phase_config:     s.phaseConfig,
-        anthropic_api_key: s.anthropicApiKey,
       });
       fetch(`${SUPABASE_URL}/rest/v1/coach_data`, {
         method: 'POST',
@@ -490,7 +483,6 @@ export function AppProvider({ children, userId }) {
             zoneConfig:      data.zone_config      ?? DEFAULT_ZONE_CONFIG,
             racePaceConfig:  data.race_pace_config ?? DEFAULT_RACE_PACE_CONFIG,
             phaseConfig:     data.phase_config     ?? DEFAULT_PHASE_CONFIG,
-            anthropicApiKey: data.anthropic_api_key ?? '',
           }) });
         }
         remoteLoaded.current = true; // mark as safe — even if no rows found
@@ -508,7 +500,6 @@ export function AppProvider({ children, userId }) {
       zone_config:      s.zoneConfig,
       race_pace_config: s.racePaceConfig,
       phase_config:     s.phaseConfig,
-      anthropic_api_key: s.anthropicApiKey,
     };
 
     // Always persist locally as backup
@@ -516,7 +507,7 @@ export function AppProvider({ children, userId }) {
       cycles: s.cycles, athletes: s.athletes, prescriptions: s.prescriptions,
       workoutLibrary: s.workoutLibrary, libraryFolders: s.libraryFolders,
       zoneConfig: s.zoneConfig, racePaceConfig: s.racePaceConfig,
-      phaseConfig: s.phaseConfig, anthropicApiKey: s.anthropicApiKey,
+      phaseConfig: s.phaseConfig,
       view: s.view,
       selectedCycleId: s.selectedCycleId,
       selectedVariantId: s.selectedVariantId,
@@ -538,7 +529,7 @@ export function AppProvider({ children, userId }) {
 
   useEffect(() => {
     saveData(state);
-  }, [state.cycles, state.athletes, state.prescriptions, state.workoutLibrary, state.libraryFolders, state.zoneConfig, state.racePaceConfig, state.phaseConfig, state.anthropicApiKey, state.view, state.selectedCycleId, state.selectedVariantId, state.selectedWeekId, state.selectedAthleteId, state.selectedPrescriptionId]);
+  }, [state.cycles, state.athletes, state.prescriptions, state.workoutLibrary, state.libraryFolders, state.zoneConfig, state.racePaceConfig, state.phaseConfig, state.view, state.selectedCycleId, state.selectedVariantId, state.selectedWeekId, state.selectedAthleteId, state.selectedPrescriptionId]);
 
   // Helper selectors
   const selected = {
