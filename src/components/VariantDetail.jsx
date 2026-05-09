@@ -351,6 +351,7 @@ export default function VariantDetail() {
   const [workoutModal, setWorkoutModal]   = useState(null);
   const [splitWorkoutModal, setSplitWorkoutModal] = useState(null);
   const [pending, setPending]             = useState(null);
+  const [libraryOpen, setLibraryOpen]     = useState(true);
   const [dragOver, setDragOver]           = useState(null);
   const [phasePickerWeekId, setPhasePickerWeekId] = useState(null);
   const [showCharts, setShowCharts]       = useState(false);
@@ -700,25 +701,41 @@ export default function VariantDetail() {
 
         {/* ── Library sidebar ───────────────────────────────────────────────── */}
         <div
-          className="hidden lg:flex flex-col w-64 flex-shrink-0 border-r border-slate-200 bg-white overflow-hidden"
+          className={`hidden lg:flex flex-col flex-shrink-0 border-r border-slate-200 bg-white transition-all duration-200 ${libraryOpen ? 'w-64 overflow-hidden' : 'w-8 overflow-hidden'}`}
           onDragOver={e => { if (dragPayload.current?.type === 'workout') e.preventDefault(); }}
           onDrop={e => { e.preventDefault(); handleDropCalendarToLibrary(null); }}
         >
-          {pending && (
-            <div className="mx-2 mt-2 px-2.5 py-2 bg-[#001F3F]/5 border border-[#001F3F]/20 rounded-lg flex-shrink-0">
-              <p className="text-xs font-semibold text-[#001F3F] truncate">{pending.name}</p>
-              <div className="flex items-center justify-between mt-0.5">
-                <p className="text-xs text-slate-500">Clique num dia ↗</p>
-                <button onClick={() => setPending(null)} className="text-xs text-slate-400 hover:text-red-500 font-bold ml-2">✕</button>
-              </div>
-            </div>
+          {/* Toggle strip */}
+          <div className={`flex flex-shrink-0 items-center border-b border-slate-100 bg-white ${libraryOpen ? 'justify-end px-2 py-1.5' : 'justify-center py-2'}`}>
+            {libraryOpen && <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest mr-auto">Biblioteca</span>}
+            <button
+              onClick={() => setLibraryOpen(o => !o)}
+              title={libraryOpen ? 'Recolher' : 'Expandir biblioteca'}
+              className="flex items-center justify-center w-6 h-6 rounded-md hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
+            >
+              <span className="text-sm font-bold leading-none">{libraryOpen ? '‹' : '›'}</span>
+            </button>
+          </div>
+
+          {libraryOpen && (
+            <>
+              {pending && (
+                <div className="mx-2 mt-2 px-2.5 py-2 bg-[#001F3F]/5 border border-[#001F3F]/20 rounded-lg flex-shrink-0">
+                  <p className="text-xs font-semibold text-[#001F3F] truncate">{pending.name}</p>
+                  <div className="flex items-center justify-between mt-0.5">
+                    <p className="text-xs text-slate-500">Clique num dia ↗</p>
+                    <button onClick={() => setPending(null)} className="text-xs text-slate-400 hover:text-red-500 font-bold ml-2">✕</button>
+                  </div>
+                </div>
+              )}
+              <LibraryPanel
+                selectedId={pending?.id}
+                onSelect={item => setPending(pending?.id === item.id ? null : item)}
+                onDragStart={handleDragStart}
+                onExternalDrop={handleDropCalendarToLibrary}
+              />
+            </>
           )}
-          <LibraryPanel
-            selectedId={pending?.id}
-            onSelect={item => setPending(pending?.id === item.id ? null : item)}
-            onDragStart={handleDragStart}
-            onExternalDrop={handleDropCalendarToLibrary}
-          />
         </div>
 
         {/* ── Calendar grid ─────────────────────────────────────────────────── */}
