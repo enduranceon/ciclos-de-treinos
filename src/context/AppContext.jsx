@@ -429,16 +429,18 @@ const SUPABASE_KEY = 'sb_publishable_pIBbWPeeC9rhd1-DrWU0SQ_ef0waSCV';
 
 export function AppProvider({ children, userId }) {
   const [state, dispatch] = useReducer(reducer, null, loadState);
-  const saveTimer = useRef(null);
-  const stateRef  = useRef(state);
+  const saveTimer    = useRef(null);
+  const stateRef     = useRef(state);
+  const remoteLoaded = useRef(false); // guard: only allow unload-save after remote data is confirmed
 
   // Keep ref in sync so beforeunload always sees latest state
   useEffect(() => { stateRef.current = state; });
 
-  // Flush to Supabase on page unload (keepalive = browser completes even after F5)
+  // Flush to Supabase on page unload — only after remote data has loaded
   useEffect(() => {
     if (!userId) return;
     function onBeforeUnload() {
+      if (!remoteLoaded.current) return; // never overwrite with pre-load state
       const s = stateRef.current;
       const payload = JSON.stringify({
         coach_id: userId,
@@ -491,6 +493,7 @@ export function AppProvider({ children, userId }) {
             anthropicApiKey: data.anthropic_api_key ?? '',
           }) });
         }
+        remoteLoaded.current = true; // mark as safe — even if no rows found
       });
   }, [userId]);
 
