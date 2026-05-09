@@ -346,12 +346,12 @@ function applyRacePaceDescription(description, requested, low, high, maxMentions
 
 function inferSpecificityFromZone(zoneLabel) {
   const z = String(zoneLabel || '').toUpperCase();
-  if (z === 'Z6') return 'Potência Anaeróbia';
-  if (z === 'Z5') return 'VO2 Máx';
-  if (z === 'Z4') return 'Limiar';
-  if (z === 'Z3') return 'Endurance Intensivo';
-  if (z === 'Z2') return 'Endurance Extensivo';
-  if (z === 'Z1') return 'Aeróbico Base';
+  if (z === 'Z6') return 'Capacidade Anaeróbica';
+  if (z === 'Z5') return 'VO2 Máx / Potência Aeróbica';
+  if (z === 'Z4') return 'Limiar Anaeróbico / Tempo Run';
+  if (z === 'Z3') return 'Limiar Aeróbico / Maratona';
+  if (z === 'Z2') return 'Endurance';
+  if (z === 'Z1') return 'Aeróbico Regenerativo';
   return null;
 }
 
@@ -520,7 +520,7 @@ Fórmula obrigatória (sempre 4 partes separadas por " - "):
   [TIPO DE TREINO] - [INTENSIDADE/OBJETIVO] - [SÉRIE PRINCIPAL] - [MÉTRICA]
 
 Capitalização obrigatória: todos os termos de Tipo e Intensidade começam com Maiúscula.
-  Ex: "Intervalado Passivo", "Endurance Extensivo", "Sub Limiar", "Forte"
+  Ex: "Intervalado Passivo", "Endurance", "Sub Limiar", "Forte"
 
 Métrica padrão: usa sempre PACE (maiúsculo).
 Exceção PSE: usa PSE apenas para Hill Repeats, treinos técnicos ou quando percepção de esforço for explicitamente solicitada.
@@ -557,25 +557,25 @@ Usa SEMPRE a nomenclatura mais específica disponível, na seguinte ordem:
      → NÃO mapeia para nenhuma subzona
 
    ⛔ EXEMPLOS PROIBIDOS:
-     "z1" → ❌ título "Aeróbico Base"   ✅ título "Z1"
-     "z2" → ❌ título "Endurance Extensivo"  ✅ título "Z2"
-     "z4" → ❌ título "Limiar"          ✅ título "Z4"
+     "z1" → ❌ título "Aeróbico Regenerativo"           ✅ título "Z1"
+     "z2" → ❌ título "Endurance"                     ✅ título "Z2"
+     "z4" → ❌ título "Limiar Anaeróbico / Tempo Run" ✅ título "Z4"
 
 🟢 PRIORIDADE 1 — Subzonas de Precisão
    Ativadas APENAS quando o usuário usa uma palavra descritiva OU escreve o nome da subzona.
    NUNCA ativadas quando o usuário escreve um código de zona simples (z1, z2, z3, z4, z5, z6).
    targetMode:"range" só vai no JSON quando a subzona for ativada por palavra/nome — NUNCA por código.
 
-   Nome             Range        Código JSON  Palavras que ativam
-   Aeróbico Base    70–80%       z1/z2        "fácil", "leve", "suave", "tranquilo", "recovery", "aeróbico base"
-   Endurance Leve   75–80%       z2           "endurance leve"
-   Endurance Ext.   80–86%       z2           "moderado", "conversação", "rodagem", "endurance extensivo"
-   Endurance Int.   86–91%       z3           "endurance", "sustentado", "endurance intensivo"
-   Sub Limiar       92–96%       z3/z4        "sub limiar", "sub-limiar", "abaixo do limiar"
-   Limiar           97–100%      z4           "limiar", "threshold", "LT2", "tempo run"
-   VO2 Máx          100–110%     z5           "vo2max", "vo2", "crítico", "vo2 máx"
-   Potência         110–130%     z6           "potência", "anaeróbio", "sprint", "neuro"
-   Regenerativo     47–55%       trote        "trote", "regenerativo", "caminhada"
+   Nome                         Range        Código JSON  Palavras que ativam
+   Aeróbico Regenerativo        70–80%       z1/z2        "fácil", "leve", "suave", "tranquilo", "recovery", "aeróbico regenerativo"
+   Endurance Leve               75–80%       z2           "endurance leve"
+   Endurance                    80–86%       z2           "moderado", "conversação", "rodagem", "endurance"
+   Limiar Aeróbico              86–91%       z3           "limiar aeróbico", "sustentado", "maratona"
+   Sub Limiar                   92–96%       z3/z4        "sub limiar", "sub-limiar", "abaixo do limiar"
+   Limiar Anaeróbico            97–100%      z4           "limiar anaeróbico", "limiar", "threshold", "LT2", "tempo run"
+   VO2 Máx / Potência Aeróbica  100–110%     z5           "vo2max", "vo2", "crítico", "vo2 máx"
+   Capacidade Anaeróbica        110–130%     z6           "capacidade anaeróbica", "potência", "anaeróbio", "sprint", "neuro"
+   Aquecimento / Trote          47–55%       trote        "trote", "regenerativo", "caminhada", "aquecimento leve"
 
 🟡 PRIORIDADE 2 — Ritmos de Prova (usa quando o treino simula ritmo de prova):
   Ritmo de 5km:           105–110%
@@ -592,13 +592,13 @@ Usa SEMPRE a nomenclatura mais específica disponível, na seguinte ordem:
   Caminhada (z0) | Muito Leve (z1) | Leve (z2) | Moderado (z3) | Forte (z4/z5) | Muito Forte (z6)
 
 Qualificadores alto/baixo — ativam subzona mesmo com código de zona:
-  "z1 alto"  → Aeróbico Base      (70–80%)   | JSON zone: z1
-  "z2 baixo" → Endurance Leve     (75–80%)   | JSON zone: z2
-  "z2 alto"  → Endurance Extensivo(80–86%)   | JSON zone: z2
-  "z3 baixo" → Endurance Intensivo(86–91%)   | JSON zone: z3
-  "z3 alto"  → Sub Limiar         (92–96%)   | JSON zone: z3
-  "z4 baixo" → Sub Limiar         (92–96%)   | JSON zone: z4  ← MESMO range que "z3 alto"
-  "z4 alto"  → Limiar             (97–100%)  | JSON zone: z4
+  "z1 alto"  → Aeróbico Regenerativo       (70–80%)   | JSON zone: z1
+  "z2 baixo" → Endurance Leve              (75–80%)   | JSON zone: z2
+  "z2 alto"  → Endurance                   (80–86%)   | JSON zone: z2
+  "z3 baixo" → Limiar Aeróbico             (86–91%)   | JSON zone: z3
+  "z3 alto"  → Sub Limiar                  (92–96%)   | JSON zone: z3
+  "z4 baixo" → Sub Limiar                  (92–96%)   | JSON zone: z4  ← MESMO range que "z3 alto"
+  "z4 alto"  → Limiar Anaeróbico           (97–100%)  | JSON zone: z4
 
 ⚠️ REGRA CRÍTICA DE SINONÍMIA: "z3 alto" e "z4 baixo" são IDÊNTICOS — ambos = Sub Limiar (92–96%).
    Se o usuário escrever "z3 alto z4 baixo" ou "z4 baixo z3 alto" em um mesmo bloco,
@@ -610,24 +610,24 @@ Qualificadores alto/baixo — ativam subzona mesmo com código de zona:
    está indicando o cruzamento entre elas — resolve diretamente para a subzona correspondente.
    NÃO peça clarificação. NÃO interprete como dois blocos separados.
 
-   z1/z2  ou  z2/z1  → Aeróbico Base      (70–80%) | zone: z1 | targetLow:70 targetHigh:80
-   z2/z3  ou  z3/z2  → Endurance Intensivo (86–91%) | zone: z3 | targetLow:86 targetHigh:91
-   z3/z4  ou  z4/z3  → Sub Limiar          (92–96%) | zone: z3 | targetLow:92 targetHigh:96
-   z4/z5  ou  z5/z4  → VO2 Máx             (100–110%)| zone: z5 | targetLow:100 targetHigh:110
+   z1/z2  ou  z2/z1  → Aeróbico Regenerativo       (70–80%)   | zone: z1 | targetLow:70 targetHigh:80
+   z2/z3  ou  z3/z2  → Limiar Aeróbico             (86–91%)   | zone: z3 | targetLow:86 targetHigh:91
+   z3/z4  ou  z4/z3  → Sub Limiar                  (92–96%)   | zone: z3 | targetLow:92 targetHigh:96
+   z4/z5  ou  z5/z4  → VO2 Máx / Potência Aeróbica (100–110%) | zone: z5 | targetLow:100 targetHigh:110
 
    Exemplos diretos:
-     "8km contínuos z1/z2"  → título: "Aeróbico Base" | 8km · 70-80%
-     "10km z3/z4"           → título: "Sub Limiar"     | 10km · 92-96%
-     "15km z1/z2"           → título: "Aeróbico Base"  | 15km · 70-80%
+     "8km contínuos z1/z2"  → título: "Aeróbico Regenerativo" | 8km · 70-80%
+     "10km z3/z4"           → título: "Sub Limiar"             | 10km · 92-96%
+     "15km z1/z2"           → título: "Aeróbico Regenerativo"  | 15km · 70-80%
 
 Exemplos de como a regra raiz funciona:
-  "z4"       → JSON zone: z4 → título: "Z4"                   ← código explícito, P3
-  "z4 alto"  → JSON zone: z4 → título: "Limiar"               ← qualificador ativa P1
-  "limiar"   → JSON zone: z4 → título: "Limiar"               ← palavra descritiva, P1
-  "z2"       → JSON zone: z2 → título: "Z2"                   ← código explícito, P3
-  "z2 alto"  → JSON zone: z2 → título: "Endurance Extensivo"  ← qualificador ativa P1
-  "moderado" → JSON zone: z2 → título: "Endurance Extensivo"  ← palavra descritiva, P1
-  "fácil"    → JSON zone: z1 → título: "Aeróbico Base"        ← palavra descritiva, P1
+  "z4"       → JSON zone: z4 → título: "Z4"                              ← código explícito, P3
+  "z4 alto"  → JSON zone: z4 → título: "Limiar Anaeróbico"              ← qualificador ativa P1
+  "limiar"   → JSON zone: z4 → título: "Limiar Anaeróbico"              ← palavra descritiva, P1
+  "z2"       → JSON zone: z2 → título: "Z2"                              ← código explícito, P3
+  "z2 alto"  → JSON zone: z2 → título: "Endurance"                      ← qualificador ativa P1
+  "moderado" → JSON zone: z2 → título: "Endurance"                      ← palavra descritiva, P1
+  "fácil"    → JSON zone: z1 → título: "Aeróbico Regenerativo"          ← palavra descritiva, P1
 
 ⚠️ O nome da subzona aparece APENAS no título e na descrição — nunca no JSON de zonas.
    No JSON, use sempre a chave: trote / z0 / z1 / z2 / z3 / z4 / z5 / z6
@@ -663,15 +663,15 @@ Notação compacta na descrição:
 
   SÉRIE PRINCIPAL: escreve o qualificador + nome da subzona
     Formato: [código qualificado] — [Nome da Subzona]
-    18km z2 baixo — Endurance Leve      ← pediu "z2 baixo"
-    10km z2 alto — Endurance Extensivo  ← pediu "z2 alto"
-    10× 1km z3 alto — Sub Limiar i=1'  ← pediu "z3 alto"
-    8km z1/z2 — Aeróbico Base           ← pediu "z1/z2"
-    5km Aeróbico Base                   ← pediu "fácil" (palavra, sem qualificador)
-    8× 800m Limiar / 400m trote         ← pediu "limiar" (palavra, sem qualificador)
+    18km z2 baixo — Endurance Leve           ← pediu "z2 baixo"
+    10km z2 alto — Endurance                ← pediu "z2 alto"
+    10× 1km z3 alto — Sub Limiar i=1'       ← pediu "z3 alto"
+    8km z1/z2 — Aeróbico Regenerativo       ← pediu "z1/z2"
+    5km Aeróbico Regenerativo               ← pediu "fácil" (palavra, sem qualificador)
+    8× 800m Limiar Anaeróbico / 400m trote  ← pediu "limiar" (palavra, sem qualificador)
 
   AQUECIMENTO / VOLTA À CALMA / ATIVAÇÃO / STRIDES: escreve SOMENTE o código da zona (z1, z2, trote...)
-    3km z1      ← não escreve "3km Aeróbico Base" nem "3km z1 alto — Aeróbico Base"
+    3km z1      ← não escreve "3km Aeróbico Regenerativo" nem "3km z1 alto — Aeróbico Regenerativo"
     2km z2      ← não escreve "2km Endurance Leve"
     1km trote   ← não escreve "1km Regenerativo"
 
@@ -697,12 +697,12 @@ INTERVALADO (subzona — adiciona range % no work):
 {"type":"intervalado","repeat":N,"workMeasure":"distance","workValue":"número","workZone":"z4","worktargetMode":"range","worktargetLow":97,"worktargetHigh":100,"restType":"passive","restMeasure":"time","restValue":"1","restZone":"z0"}
 
 Tabela de ranges por subzona (para preencher targetLow/targetHigh):
-  Aeróbico Base      → targetLow:70, targetHigh:80  | zone: z1
-  Endurance Leve     → targetLow:75, targetHigh:80  | zone: z2
-  Endurance Extensivo→ targetLow:80, targetHigh:86  | zone: z2
-  Endurance Intensivo→ targetLow:86, targetHigh:91  | zone: z3
-  Sub Limiar         → targetLow:92, targetHigh:96  | zone: z3 ou z4
-  Limiar             → targetLow:97, targetHigh:100 | zone: z4
+  Aeróbico Regenerativo        → targetLow:70, targetHigh:80  | zone: z1
+  Endurance Leve               → targetLow:75, targetHigh:80  | zone: z2
+  Endurance                    → targetLow:80, targetHigh:86  | zone: z2
+  Limiar Aeróbico              → targetLow:86, targetHigh:91  | zone: z3
+  Sub Limiar                   → targetLow:92, targetHigh:96  | zone: z3 ou z4
+  Limiar Anaeróbico            → targetLow:97, targetHigh:100 | zone: z4
 
 restValue → SEMPRE minutos ou M:SS (nunca segundos brutos):
   30s="0:30" | 45s="0:45" | 1min="1" | 90s="1:30" | 2min="2" | 3min="3"
@@ -740,22 +740,22 @@ Zonas de referência (% do Limiar Anaeróbio):
 ═══════════════════════════════════════════
 
 Comando: "2km aq fácil + 10x 1km em z4 i=1' parado + 1km volta fácil"
-{"title":"Intervalado Passivo - Z4 - 10x 1km - PACE","type":"corrida","description":"Aquecimento:\n2km Aeróbico Base\n\nSérie Principal:\n10× 1km Z4 i=1'\n\nVolta à Calma:\n1km Aeróbico Base","blocks":[{"sectionType":"aquecimento","subBlocks":[{"type":"continuo","measureType":"distance","value":"2","zone":"z1","targetMode":"range","targetLow":70,"targetHigh":80}]},{"sectionType":"serie_principal","subBlocks":[{"type":"intervalado","repeat":10,"workMeasure":"distance","workValue":"1","workZone":"z4","restType":"passive","restMeasure":"time","restValue":"1","restZone":"z0"}]},{"sectionType":"volta_calma","subBlocks":[{"type":"continuo","measureType":"distance","value":"1","zone":"z1","targetMode":"range","targetLow":70,"targetHigh":80}]}]}
+{"title":"Intervalado Passivo - Z4 - 10x 1km - PACE","type":"corrida","description":"Aquecimento:\n2km Aeróbico Regenerativo\n\nSérie Principal:\n10× 1km Z4 i=1'\n\nVolta à Calma:\n1km Aeróbico Regenerativo","blocks":[{"sectionType":"aquecimento","subBlocks":[{"type":"continuo","measureType":"distance","value":"2","zone":"z1","targetMode":"range","targetLow":70,"targetHigh":80}]},{"sectionType":"serie_principal","subBlocks":[{"type":"intervalado","repeat":10,"workMeasure":"distance","workValue":"1","workZone":"z4","restType":"passive","restMeasure":"time","restValue":"1","restZone":"z0"}]},{"sectionType":"volta_calma","subBlocks":[{"type":"continuo","measureType":"distance","value":"1","zone":"z1","targetMode":"range","targetLow":70,"targetHigh":80}]}]}
 
 Comando: "3km aq fácil + 5x (1km z4 / 1km z1 / 2km z4 / 2km z1) + 2km volta fácil"
 {"title":"Fartlek - Z4/Z1/Z4/Z1 - 5x 1km/1km/2km/2km - PACE","type":"corrida","description":"Aquecimento:\n3km z1\n\nSérie Principal:\n5× [1km z4 + 1km z1 + 2km z4 + 2km z1]\n\nVolta à Calma:\n2km z1","blocks":[{"sectionType":"aquecimento","subBlocks":[{"type":"continuo","measureType":"distance","value":"3","zone":"z1"}]},{"sectionType":"serie_principal","subBlocks":[{"type":"variacao","repeat":5,"stimuli":[{"measureType":"distance","value":"1","zone":"z4"},{"measureType":"distance","value":"1","zone":"z1"},{"measureType":"distance","value":"2","zone":"z4"},{"measureType":"distance","value":"2","zone":"z1"}]}]},{"sectionType":"volta_calma","subBlocks":[{"type":"continuo","measureType":"distance","value":"2","zone":"z1"}]}]}
 
 Comando: "15km progressivos: 5km z1, 5km endurance leve, 5km endurance extensivo"
-{"title":"Progressivo - Z1/Endurance Leve/Endurance Extensivo - 5km/5km/5km - PACE","type":"corrida","description":"Série Principal:\n5km z1\n5km z2\n5km z2","blocks":[{"sectionType":"serie_principal","subBlocks":[{"type":"continuo","measureType":"distance","value":"5","zone":"z1"},{"type":"continuo","measureType":"distance","value":"5","zone":"z2"},{"type":"continuo","measureType":"distance","value":"5","zone":"z2"}]}]}
+{"title":"Progressivo - Z1/Endurance Leve/Endurance - 5km/5km/5km - PACE","type":"corrida","description":"Série Principal:\n5km z1\n5km z2\n5km z2","blocks":[{"sectionType":"serie_principal","subBlocks":[{"type":"continuo","measureType":"distance","value":"5","zone":"z1"},{"type":"continuo","measureType":"distance","value":"5","zone":"z2"},{"type":"continuo","measureType":"distance","value":"5","zone":"z2"}]}]}
 
 Comando: "10x 400m subida moderada / 200m descida trote"
 {"title":"Hill Repeats - Moderado - 10x 400m/200m - PSE","type":"corrida","description":"Série Principal:\n10× 400m↑ z3 / 200m↓ trote","blocks":[{"sectionType":"serie_principal","subBlocks":[{"type":"intervalado","repeat":10,"workMeasure":"distance","workValue":"0.4","workZone":"z3","worktargetMode":"pse","workpseLevel":"moderado","restType":"active","restMeasure":"distance","restValue":"0.2","restZone":"trote"}]}]}
 
 Comando: "aquecimento 3km fácil, ativação 3x300m rápido c/ 200m trote, série 8x800m no limiar c/ 400m trote, volta 1km fácil"
-{"title":"Intervalado Ativo - Limiar - 8x 800m - PACE","type":"corrida","description":"Aquecimento:\n3km Aeróbico Base\n\nAtivação:\n3× 300m z5 / 200m trote\n\nSérie Principal:\n8× 800m Limiar / 400m trote\n\nVolta à Calma:\n1km Aeróbico Base","blocks":[{"sectionType":"aquecimento","subBlocks":[{"type":"continuo","measureType":"distance","value":"3","zone":"z1","targetMode":"range","targetLow":70,"targetHigh":80}]},{"sectionType":"ativacao","subBlocks":[{"type":"intervalado","repeat":3,"workMeasure":"distance","workValue":"0.3","workZone":"z5","restType":"active","restMeasure":"distance","restValue":"0.2","restZone":"trote"}]},{"sectionType":"serie_principal","subBlocks":[{"type":"intervalado","repeat":8,"workMeasure":"distance","workValue":"0.8","workZone":"z4","worktargetMode":"range","worktargetLow":97,"worktargetHigh":100,"restType":"active","restMeasure":"distance","restValue":"0.4","restZone":"trote"}]},{"sectionType":"volta_calma","subBlocks":[{"type":"continuo","measureType":"distance","value":"1","zone":"z1","targetMode":"range","targetLow":70,"targetHigh":80}]}]}
+{"title":"Intervalado Ativo - Limiar Anaeróbico - 8x 800m - PACE","type":"corrida","description":"Aquecimento:\n3km Aeróbico Regenerativo\n\nAtivação:\n3× 300m z5 / 200m trote\n\nSérie Principal:\n8× 800m Limiar Anaeróbico / 400m trote\n\nVolta à Calma:\n1km Aeróbico Regenerativo","blocks":[{"sectionType":"aquecimento","subBlocks":[{"type":"continuo","measureType":"distance","value":"3","zone":"z1","targetMode":"range","targetLow":70,"targetHigh":80}]},{"sectionType":"ativacao","subBlocks":[{"type":"intervalado","repeat":3,"workMeasure":"distance","workValue":"0.3","workZone":"z5","restType":"active","restMeasure":"distance","restValue":"0.2","restZone":"trote"}]},{"sectionType":"serie_principal","subBlocks":[{"type":"intervalado","repeat":8,"workMeasure":"distance","workValue":"0.8","workZone":"z4","worktargetMode":"range","worktargetLow":97,"worktargetHigh":100,"restType":"active","restMeasure":"distance","restValue":"0.4","restZone":"trote"}]},{"sectionType":"volta_calma","subBlocks":[{"type":"continuo","measureType":"distance","value":"1","zone":"z1","targetMode":"range","targetLow":70,"targetHigh":80}]}]}
 
 Comando: "aq 20min fácil, 10x400m vo2max i=1min passivo, volta 10min fácil"
-{"title":"Intervalado Passivo - VO2 Máx - 10x 400m - PACE","type":"corrida","description":"Aquecimento:\n20min z1\n\nSérie Principal:\n10× 400m z5 i=1'\n\nVolta à Calma:\n10min z1","blocks":[{"sectionType":"aquecimento","subBlocks":[{"type":"continuo","measureType":"time","value":"20","zone":"z1"}]},{"sectionType":"serie_principal","subBlocks":[{"type":"intervalado","repeat":10,"workMeasure":"distance","workValue":"0.4","workZone":"z5","restType":"passive","restMeasure":"time","restValue":"1","restZone":"z0"}]},{"sectionType":"volta_calma","subBlocks":[{"type":"continuo","measureType":"time","value":"10","zone":"z1"}]}]}
+{"title":"Intervalado Passivo - VO2 Máx / Potência Aeróbica - 10x 400m - PACE","type":"corrida","description":"Aquecimento:\n20min z1\n\nSérie Principal:\n10× 400m z5 i=1'\n\nVolta à Calma:\n10min z1","blocks":[{"sectionType":"aquecimento","subBlocks":[{"type":"continuo","measureType":"time","value":"20","zone":"z1"}]},{"sectionType":"serie_principal","subBlocks":[{"type":"intervalado","repeat":10,"workMeasure":"distance","workValue":"0.4","workZone":"z5","restType":"passive","restMeasure":"time","restValue":"1","restZone":"z0"}]},{"sectionType":"volta_calma","subBlocks":[{"type":"continuo","measureType":"time","value":"10","zone":"z1"}]}]}
 
 Comando: "aq 3km fácil, strides 10x 200m z4 c/ 200m z1, série 8x800m limiar i=2min, volta 1km fácil"
 {"title":"Intervalado Passivo + Strides - Limiar - 8x 800m - PACE","type":"corrida","description":"Aquecimento:\n3km z1\n\nStrides:\n10× 200m z4 / 200m z1\n\nSérie Principal:\n8× 800m z4 i=2'\n\nVolta à Calma:\n1km z1","blocks":[{"sectionType":"aquecimento","subBlocks":[{"type":"continuo","measureType":"distance","value":"3","zone":"z1"}]},{"sectionType":"strides","subBlocks":[{"type":"intervalado","repeat":10,"workMeasure":"distance","workValue":"0.2","workZone":"z4","restType":"active","restMeasure":"distance","restValue":"0.2","restZone":"z1"}]},{"sectionType":"serie_principal","subBlocks":[{"type":"intervalado","repeat":8,"workMeasure":"distance","workValue":"0.8","workZone":"z4","restType":"passive","restMeasure":"time","restValue":"2","restZone":"z0"}]},{"sectionType":"volta_calma","subBlocks":[{"type":"continuo","measureType":"distance","value":"1","zone":"z1"}]}]}
@@ -786,7 +786,7 @@ NÃO peça clarificação quando a zona puder ser inferida por:
 
 Exemplo obrigatório de clarificação:
 ENTRADA: "aquecimento 3km, 10x400m z5 i=1', volta 1km"
-→ {"clarifications":[{"id":"q1","context":"Aquecimento (3km)","question":"Qual a intensidade do aquecimento?","suggestions":["Aeróbico Base — z1","Endurance Extensivo — z2","Regenerativo — z0"]},{"id":"q2","context":"Volta à Calma (1km)","question":"Qual a intensidade da volta à calma?","suggestions":["Aeróbico Base — z1","Regenerativo — z0","Trote"]}]}
+→ {"clarifications":[{"id":"q1","context":"Aquecimento (3km)","question":"Qual a intensidade do aquecimento?","suggestions":["Aeróbico Regenerativo — z1","Endurance — z2","Aquecimento / Trote — z0"]},{"id":"q2","context":"Volta à Calma (1km)","question":"Qual a intensidade da volta à calma?","suggestions":["Aeróbico Regenerativo — z1","Aquecimento / Trote — z0","Trote"]}]}
 
 Responda APENAS com JSON válido, sem texto extra, sem \`\`\`json, sem comentários.`;
 
