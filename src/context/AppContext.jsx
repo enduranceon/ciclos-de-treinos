@@ -1,4 +1,4 @@
-import { createContext, useContext, useReducer, useEffect, useRef, useCallback } from 'react';
+import { createContext, useContext, useReducer, useState, useEffect, useRef, useCallback } from 'react';
 import {
   uuid,
   generateWeeks,
@@ -427,6 +427,7 @@ export function AppProvider({ children, userId }) {
   const stateRef       = useRef(state);
   const remoteLoaded   = useRef(false); // guard: only allow unload-save after remote data is confirmed
   const localUpdatedAt = useRef(0);    // timestamp of last local save — used to detect newer local data
+  const [remoteConflict, setRemoteConflict] = useState(false); // another device saved newer data
 
   // Keep ref in sync so beforeunload always sees latest state
   useEffect(() => { stateRef.current = state; });
@@ -540,6 +541,30 @@ export function AppProvider({ children, userId }) {
       });
   }, [userId]);
 
+  // Realtime — detect when another device saves newer data
+  useEffect(() => {
+    if (!userId) return;
+    const channel = supabase
+      .channel(`coach_data:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'coach_data', filter: `coach_id=eq.${userId}` },
+        (payload) => {
+          if (!remoteLoaded.current) return;
+          const remoteTs = payload.new?.updated_at
+            ? new Date(payload.new.updated_at).getTime()
+            : 0;
+          // Only warn if the remote save is strictly newer than our last local save
+          // (meaning another device — not us — wrote it)
+          if (remoteTs > localUpdatedAt.current + 2000) {
+            setRemoteConflict(true);
+          }
+        }
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [userId]);
+
   // Debounced save to Supabase + localStorage
   const saveData = useCallback((s) => {
     const now = Date.now();
@@ -628,8 +653,54 @@ export function AppProvider({ children, userId }) {
     });
   });
 
+  function handleReloadRemote() {
+    setRemoteConflict(false);
+    supabase
+      .from('coach_data')
+      .select('*')
+      .eq('coach_id', userId)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        localUpdatedAt.current = data.updated_at ? new Date(data.updated_at).getTime() : 0;
+        dispatch({ type: 'LOAD_REMOTE', payload: mergeWithDefaults({
+          cycles:          data.cycles          ?? [],
+          athletes:        data.athletes        ?? [],
+          prescriptions:   data.prescriptions   ?? [],
+          workoutLibrary:  data.workout_library  ?? [],
+          libraryFolders:  data.library_folders  ?? [],
+          zoneConfig:      data.zone_config      ?? DEFAULT_ZONE_CONFIG,
+          racePaceConfig:  data.race_pace_config ?? DEFAULT_RACE_PACE_CONFIG,
+          phaseConfig:     data.phase_config     ?? DEFAULT_PHASE_CONFIG,
+        }) });
+      });
+  }
+
   return (
     <AppContext.Provider value={{ state, dispatch, selected }}>
+      {remoteConflict && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[9999] flex items-center gap-3 bg-[#001F3F] text-white text-sm px-4 py-3 rounded-xl shadow-2xl border border-white/10 max-w-sm w-full mx-4">
+          <span className="text-lg">⚠️</span>
+          <p className="flex-1 leading-snug">
+            <span className="font-bold">Outro dispositivo salvou dados mais recentes.</span><br />
+            <span className="text-white/70 text-xs">Recarregar para não perder essas alterações?</span>
+          </p>
+          <div className="flex flex-col gap-1">
+            <button
+              onClick={handleReloadRemote}
+              className="text-xs font-bold bg-white text-[#001F3F] px-3 py-1 rounded-lg hover:bg-white/90 transition-colors whitespace-nowrap"
+            >
+              Recarregar
+            </button>
+            <button
+              onClick={() => setRemoteConflict(false)}
+              className="text-xs text-white/50 hover:text-white/80 transition-colors text-center"
+            >
+              Ignorar
+            </button>
+          </div>
+        </div>
+      )}
       {children}
     </AppContext.Provider>
   );
