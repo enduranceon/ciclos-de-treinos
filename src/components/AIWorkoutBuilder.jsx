@@ -346,12 +346,12 @@ function applyRacePaceDescription(description, requested, low, high, maxMentions
 
 function inferSpecificityFromZone(zoneLabel) {
   const z = String(zoneLabel || '').toUpperCase();
-  if (z === 'Z6') return 'Capacidade Anaeróbica';
-  if (z === 'Z5') return 'VO2 Máx / Potência Aeróbica';
-  if (z === 'Z4') return 'Limiar Anaeróbico / Tempo Run';
-  if (z === 'Z3') return 'Limiar Aeróbico / Maratona';
+  if (z === 'Z6') return 'Anaeróbio';
+  if (z === 'Z5') return 'VO2';
+  if (z === 'Z4') return 'Limiar';
+  if (z === 'Z3') return 'Intensivo';
   if (z === 'Z2') return 'Endurance';
-  if (z === 'Z1') return 'Aeróbico Regenerativo';
+  if (z === 'Z1') return 'Aeróbico Base';
   return null;
 }
 
@@ -520,7 +520,7 @@ Fórmula obrigatória (sempre 4 partes separadas por " - "):
   [TIPO DE TREINO] - [INTENSIDADE/OBJETIVO] - [SÉRIE PRINCIPAL] - [MÉTRICA]
 
 Capitalização obrigatória: todos os termos de Tipo e Intensidade começam com Maiúscula.
-  Ex: "Intervalado Passivo", "Endurance", "Sub Limiar", "Forte"
+  Ex: "Intervalado Passivo", "Endurance Extensivo", "Sub Limiar", "Forte"
 
 Métrica padrão: usa sempre PACE (maiúsculo).
 Exceção PSE: usa PSE apenas para Hill Repeats, treinos técnicos ou quando percepção de esforço for explicitamente solicitada.
@@ -557,9 +557,9 @@ Usa SEMPRE a nomenclatura mais específica disponível, na seguinte ordem:
      → NÃO mapeia para nenhuma subzona
 
    ⛔ EXEMPLOS PROIBIDOS:
-     "z1" → ❌ título "Aeróbico Regenerativo"           ✅ título "Z1"
-     "z2" → ❌ título "Endurance"                     ✅ título "Z2"
-     "z4" → ❌ título "Limiar Anaeróbico / Tempo Run" ✅ título "Z4"
+     "z1" → ❌ título "Aeróbico Base"   ✅ título "Z1"
+     "z2" → ❌ título "Endurance Extensivo"  ✅ título "Z2"
+     "z4" → ❌ título "Limiar"          ✅ título "Z4"
 
 🟢 PRIORIDADE 1 — Subzonas de Precisão
    Ativadas APENAS quando o usuário usa uma palavra descritiva OU escreve o nome da subzona.
@@ -733,7 +733,7 @@ Conversão de distâncias → km:
   100m=0.1 | 200m=0.2 | 400m=0.4 | 500m=0.5 | 800m=0.8 | 1000m=1 | 1500m=1.5
 
 Zonas de referência (% do Limiar Anaeróbio):
-  trote 47–55% | z0 55–65% | z1 65–75% | z2 75–86% | z3 86–93% | z4 93–100% | z5 100–110% | z6 110–130%
+  trote 50–60% | z0 60–70% | z1 70–80% | z2 80–88% | z3 88–95% | z4 95–100% | z5 100–108% | z6 108–120%
 
 ═══════════════════════════════════════════
 5. EXEMPLOS PARA APRENDIZAGEM

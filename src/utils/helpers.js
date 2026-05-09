@@ -519,25 +519,25 @@ export const ZONE_COLORS = {
 };
 
 export const ZONE_LABELS = {
-  trote: 'Trote (47–55%)',
-  z0: 'Z0 – Aquecimento / Trote (55–65%)',
-  z1: 'Z1 – Aeróbico Regenerativo (65–75%)',
-  z2: 'Z2 – Endurance (75–86%)',
-  z3: 'Z3 – Limiar Aeróbico / Maratona (86–93%)',
-  z4: 'Z4 – Limiar Anaeróbico / Tempo Run (93–100%)',
-  z5: 'Z5 – VO₂ Máx / Potência Aeróbica (100–110%)',
-  z6: 'Z6 – Capacidade Anaeróbica (110–130%)',
+  trote: 'Trote (50–60%)',
+  z0: 'Z0 – Regenerativo (60–70%)',
+  z1: 'Z1 – Aeróbico Base (70–80%)',
+  z2: 'Z2 – Endurance (80–88%)',
+  z3: 'Z3 – Intensivo (88–95%)',
+  z4: 'Z4 – Limiar (95–100%)',
+  z5: 'Z5 – VO2 (100–108%)',
+  z6: 'Z6 – Anaeróbio (108–120%)',
 };
 
 export const DEFAULT_ZONE_CONFIG = [
-  { key: 'trote', name: 'Trote',               color: '#475569', low: 47,  high: 55  },
-  { key: 'z0',    name: 'Aquecimento / Trote',           color: '#94A3B8', low: 55,  high: 65  },
-  { key: 'z1',    name: 'Aeróbico Regenerativo',        color: '#60A5FA', low: 65,  high: 75  },
-  { key: 'z2',    name: 'Endurance',                    color: '#34D399', low: 75,  high: 86  },
-  { key: 'z3',    name: 'Limiar Aeróbico / Maratona',   color: '#FBBF24', low: 86,  high: 93  },
-  { key: 'z4',    name: 'Limiar Anaeróbico / Tempo Run',color: '#F97316', low: 93,  high: 100 },
-  { key: 'z5',    name: 'VO2 Máx / Potência Aeróbica', color: '#EF4444', low: 100, high: 110 },
-  { key: 'z6',    name: 'Capacidade Anaeróbica',        color: '#7C3AED', low: 110, high: 130 },
+  { key: 'trote', name: 'Trote',        color: '#475569', low: 50,  high: 60  },
+  { key: 'z0',    name: 'Regenerativo', color: '#94A3B8', low: 60,  high: 70  },
+  { key: 'z1',    name: 'Aeróbico Base',color: '#60A5FA', low: 70,  high: 80  },
+  { key: 'z2',    name: 'Endurance',    color: '#34D399', low: 80,  high: 88  },
+  { key: 'z3',    name: 'Intensivo',    color: '#FBBF24', low: 88,  high: 95  },
+  { key: 'z4',    name: 'Limiar',       color: '#F97316', low: 95,  high: 100 },
+  { key: 'z5',    name: 'VO2',          color: '#EF4444', low: 100, high: 108 },
+  { key: 'z6',    name: 'Anaeróbio',    color: '#7C3AED', low: 108, high: 120 },
 ];
 
 export const DEFAULT_RACE_PACE_CONFIG = [
