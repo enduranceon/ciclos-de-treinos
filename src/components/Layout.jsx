@@ -4,6 +4,7 @@ import { SPORT_ICONS } from '../utils/helpers';
 
 const NAV_TABS = [
   { view: 'cycles',   label: 'Ciclos',   icon: '📋', action: 'GO_CYCLES'   },
+  { view: 'team',     label: 'Meu Time', icon: '🏃', action: 'GO_TEAM'     },
   { view: 'athletes', label: 'Atletas',  icon: '👤', action: 'GO_ATHLETES' },
   { view: 'studio',   label: 'Studio',   icon: '✨', action: 'GO_STUDIO'   },
   { view: 'lab',      label: 'Lab',      icon: '⚗️', action: 'GO_LAB'      },
@@ -20,6 +21,7 @@ export default function Layout({ children }) {
 
   function isTabActive(tab) {
     if (tab.view === 'cycles')   return inCyclesSection;
+    if (tab.view === 'team')     return state.view === 'team';
     if (tab.view === 'athletes') return inAthletesSection;
     if (tab.view === 'studio')   return state.view === 'studio';
     if (tab.view === 'lab')      return state.view === 'lab';
