@@ -396,7 +396,17 @@ function reducer(state, action) {
     }
 
     case 'LOAD_REMOTE':
-      return { ...state, ...action.payload };
+      // Atualiza apenas dados — preserva o estado de navegação atual
+      return {
+        ...state,
+        ...action.payload,
+        view:                    state.view,
+        selectedCycleId:         state.selectedCycleId,
+        selectedVariantId:       state.selectedVariantId,
+        selectedWeekId:          state.selectedWeekId,
+        selectedAthleteId:       state.selectedAthleteId,
+        selectedPrescriptionId:  state.selectedPrescriptionId,
+      };
 
     default:
       return state;
