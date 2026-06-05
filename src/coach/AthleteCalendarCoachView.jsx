@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
+import WorkoutForm from '../components/WorkoutForm';
 import {
   blockDurationMin, calcWorkoutDistance, calcWorkoutZones,
   ZONE_COLORS, DEFAULT_ZONE_CONFIG,
@@ -163,142 +164,7 @@ function LibraryPanel({ zoneConfig, onDragStart, selectedWorkout, onSelect }) {
   );
 }
 
-// ── Modal de prescrição ────────────────────────────────────────────────────────
-function PrescribeModal({ date, athleteId, coachId, editWorkout, prefill, onClose, onSaved }) {
-  const { state, dispatch } = useApp();
-  const isEdit = !!editWorkout;
-
-  const [form, setForm] = useState({
-    title:                  prefill?.title  || editWorkout?.title  || '',
-    sport:                  prefill?.sport || prefill?.type || editWorkout?.sport || 'corrida',
-    description:            prefill?.description || editWorkout?.description || '',
-    estimated_duration_min: prefill?.estimated_duration_min ?? prefill?.dur ?? editWorkout?.estimated_duration_min ?? '',
-    estimated_distance_km:  prefill?.estimated_distance_km  ?? prefill?.dist ?? editWorkout?.estimated_distance_km  ?? '',
-    blocks:                 prefill?.blocks || editWorkout?.blocks || [],
-  });
-  const [saveToLib, setSaveToLib] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [error, setError]   = useState('');
-  const set = (k,v) => setForm(f => ({...f,[k]:v}));
-
-  const d = parseISO(date);
-  const dateLabel = `${WEEKDAYS[(d.getDay()+6)%7]}, ${d.getDate()} de ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
-
-  async function handleSave(e) {
-    e.preventDefault(); setError(''); setSaving(true);
-    try {
-      const payload = {
-        athlete_id:             athleteId,
-        coach_id:               coachId,
-        scheduled_date:         date,
-        sport:                  form.sport,
-        title:                  form.title,
-        description:            form.description || null,
-        estimated_duration_min: form.estimated_duration_min ? Number(form.estimated_duration_min) : null,
-        estimated_distance_km:  form.estimated_distance_km  ? Number(form.estimated_distance_km)  : null,
-        blocks:                 form.blocks || [],
-      };
-      const { error: err } = isEdit
-        ? await supabase.from('prescribed_workout').update(payload).eq('id', editWorkout.id)
-        : await supabase.from('prescribed_workout').insert(payload);
-      if (err) throw err;
-      if (saveToLib && !isEdit) {
-        dispatch({ type: 'ADD_LIBRARY_WORKOUT', payload: {
-          type: form.sport, title: form.title,
-          description: form.description||'', blocks: form.blocks||[],
-        }});
-      }
-      onSaved(); onClose();
-    } catch(err) { setError(err.message); }
-    finally { setSaving(false); }
-  }
-
-  async function handleDelete() {
-    if (!confirm('Remover este treino?')) return;
-    await supabase.from('prescribed_workout').delete().eq('id', editWorkout.id);
-    onSaved(); onClose();
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={onClose}>
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col"
-        onClick={e=>e.stopPropagation()}>
-        <div className="bg-[#001F3F] rounded-t-2xl px-6 py-4 flex items-center justify-between flex-shrink-0">
-          <div>
-            <p className="text-blue-300 text-xs uppercase tracking-widest font-bold">{dateLabel}</p>
-            <h2 className="text-white font-bold text-base mt-0.5">
-              {isEdit ? 'Editar Treino' : 'Prescrever Treino'}
-            </h2>
-          </div>
-          <button onClick={onClose} className="text-blue-300 hover:text-white text-2xl leading-none">×</button>
-        </div>
-
-        <form onSubmit={handleSave} className="flex flex-col flex-1 min-h-0">
-          <div className="flex-1 overflow-y-auto p-5 space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">Título *</label>
-              <input required value={form.title} onChange={e=>set('title',e.target.value)}
-                placeholder="Ex: Long Run Z2, Intervalado 4×1km…"
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/20 focus:border-[#001F3F]" />
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5">Esporte</label>
-                <select value={form.sport} onChange={e=>set('sport',e.target.value)}
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/20 focus:border-[#001F3F]">
-                  {SPORT_OPTIONS.map(s=><option key={s.value} value={s.value}>{s.label}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5">Duração (min)</label>
-                <input type="number" min="1" value={form.estimated_duration_min}
-                  onChange={e=>set('estimated_duration_min',e.target.value)} placeholder="60"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/20 focus:border-[#001F3F]" />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-slate-600 mb-1.5">Distância (km)</label>
-                <input type="number" step="0.1" min="0" value={form.estimated_distance_km}
-                  onChange={e=>set('estimated_distance_km',e.target.value)} placeholder="12"
-                  className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#001F3F]/20 focus:border-[#001F3F]" />
-              </div>
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-600 mb-1.5">Descrição / Estrutura</label>
-              <textarea rows={5} value={form.description}
-                onChange={e=>set('description',e.target.value)}
-                placeholder={`10min aquecimento Z1\n3× (5min Z3 / 2min Z1)\n10min volta à calma`}
-                className="w-full border border-slate-200 rounded-xl px-3 py-2.5 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-[#001F3F]/20 focus:border-[#001F3F] font-mono" />
-            </div>
-            {!isEdit && (
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
-                <input type="checkbox" checked={saveToLib} onChange={e=>setSaveToLib(e.target.checked)}
-                  className="w-4 h-4 accent-[#001F3F] rounded" />
-                <span className="text-sm text-slate-600">Salvar também na <strong>Biblioteca</strong></span>
-              </label>
-            )}
-            {error && <div className="bg-red-50 text-red-600 text-xs rounded-xl px-3 py-2.5 border border-red-100">{error}</div>}
-          </div>
-          <div className="flex gap-3 p-4 border-t border-slate-100 flex-shrink-0">
-            {isEdit && (
-              <button type="button" onClick={handleDelete}
-                className="border border-red-200 text-red-500 font-bold text-sm px-4 py-2.5 rounded-xl hover:bg-red-50">
-                Remover
-              </button>
-            )}
-            <button type="button" onClick={onClose}
-              className="flex-1 border border-slate-200 text-slate-600 font-bold text-sm py-2.5 rounded-xl hover:bg-slate-50">
-              Cancelar
-            </button>
-            <button type="submit" disabled={saving}
-              className="flex-1 bg-[#001F3F] text-white font-bold text-sm py-2.5 rounded-xl hover:bg-[#002a55] disabled:opacity-50">
-              {saving ? 'Salvando…' : isEdit ? 'Salvar' : 'Prescrever'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+// PrescribeModal removido — usa WorkoutForm completo (ver abaixo)
 
 // ── Card de treino no calendário ───────────────────────────────────────────────
 function CalWorkoutCard({ w, completed, onClick }) {
@@ -456,27 +322,61 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
     }
   }
 
-  // Clique num dia com treino selecionado da biblioteca → prescreve
+  // Clique num dia → abre WorkoutForm (com biblioteca pré-carregada ou em branco)
   function handleDayClick(iso) {
-    if (selectedLib) {
-      // Preenche modal com o treino selecionado
-      const w = selectedLib;
-      const dur  = w.estimated_duration_min ?? calcDuration(w.blocks);
-      const dist = w.estimated_distance_km  ?? parseFloat(calcWorkoutDistance(w).toFixed(2));
-      setModal({
-        date: iso,
-        prefill: {
-          title:                  w.title,
-          sport:                  w.type || w.sport || 'corrida',
-          description:            w.description || '',
-          blocks:                 w.blocks || [],
-          estimated_duration_min: dur  || '',
-          estimated_distance_km:  dist || '',
-        }
-      });
-    } else {
-      setModal({ date: iso });
-    }
+    setModal({
+      date: iso,
+      libraryTemplate: selectedLib || null, // pré-preenche se tem selecionado
+      editWorkout: null,
+    });
+  }
+
+  // Salvar prescrição via WorkoutForm
+  async function handlePrescribeSave(iso, editId, workoutData) {
+    const payload = {
+      athlete_id:             athleteId,
+      coach_id:               coachId,
+      scheduled_date:         iso,
+      sport:                  workoutData.type || workoutData.sport || 'corrida',
+      title:                  workoutData.title,
+      description:            workoutData.description || null,
+      estimated_duration_min: workoutData.blocks?.length
+        ? Math.round(workoutData.blocks.reduce((s, b) => s + blockDurationMin(b), 0)) || null
+        : null,
+      estimated_distance_km:  workoutData.blocks?.length
+        ? parseFloat(calcWorkoutDistance(workoutData).toFixed(2)) || null
+        : null,
+      blocks: workoutData.blocks || [],
+    };
+    const { error } = editId
+      ? await supabase.from('prescribed_workout').update(payload).eq('id', editId)
+      : await supabase.from('prescribed_workout').insert(payload);
+    if (error) { alert('Erro ao salvar: ' + error.message); return; }
+    setModal(null);
+    load();
+  }
+
+  // Remover treino prescrito
+  async function handlePrescribeDelete(editId) {
+    if (!confirm('Remover este treino do calendário?')) return;
+    await supabase.from('prescribed_workout').delete().eq('id', editId);
+    setModal(null);
+    load();
+  }
+
+  // Adapta prescribed_workout → formato que WorkoutForm espera
+  function adaptToWorkoutForm(pw) {
+    if (!pw) return null;
+    return {
+      id:          pw.id,
+      title:       pw.title || '',
+      type:        pw.sport || 'corrida',
+      description: pw.description || '',
+      notes:       '',
+      blocks:      pw.blocks || [],
+      dayOfWeek:   1,
+      period:      'manha',
+    };
   }
 
   return (
@@ -646,16 +546,20 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* WorkoutForm completo — mesmo editor dos Ciclos */}
       {modal && (
-        <PrescribeModal
-          date={modal.date}
-          athleteId={athleteId}
-          coachId={coachId}
-          editWorkout={modal.workout||null}
-          prefill={modal.prefill||null}
+        <WorkoutForm
           onClose={() => setModal(null)}
-          onSaved={load}
+          workout={adaptToWorkoutForm(modal.editWorkout)}
+          libraryTemplate={modal.libraryTemplate || null}
+          prescriptionDate={modal.date}
+          onSave={(workoutData) =>
+            handlePrescribeSave(modal.date, modal.editWorkout?.id || null, workoutData)
+          }
+          // Quando editar, mostrar botão de remover via onDelete
+          {...(modal.editWorkout ? {
+            onDelete: () => handlePrescribeDelete(modal.editWorkout.id)
+          } : {})}
         />
       )}
     </div>

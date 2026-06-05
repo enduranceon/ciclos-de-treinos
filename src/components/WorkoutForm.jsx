@@ -825,7 +825,10 @@ function WorkoutChart({ blocks, zoneConfig, onSectionClick }) {
 }
 
 // ── Main form ─────────────────────────────────────────────────────────────────
-export default function WorkoutForm({ onClose, workout, cycleId, variantId, weekId, defaultDay, libraryTemplate }) {
+// onSave(workoutData) — quando fornecido, usa-o em vez de dispatch (modo prescrição)
+// prescriptionDate — string ISO da data prescrita (exibe no header em vez do seletor de dia)
+// onDelete() — quando fornecido, exibe botão "Remover" no modo prescrição
+export default function WorkoutForm({ onClose, workout, cycleId, variantId, weekId, defaultDay, libraryTemplate, onSave, prescriptionDate, onDelete }) {
   const { state, dispatch } = useApp();
   const isEditing = !!workout;
 
@@ -840,8 +843,8 @@ export default function WorkoutForm({ onClose, workout, cycleId, variantId, week
     id:          workout?.id || uuid(),
     dayOfWeek:   workout?.dayOfWeek ?? defaultDay ?? 1,
     period:      workout?.period || 'manha',
-    title:       workout?.title || libraryTemplate?.name || '',
-    type:        workout?.type || libraryTemplate?.sport || 'corrida',
+    title:       workout?.title || libraryTemplate?.title || libraryTemplate?.name || '',
+    type:        workout?.type || libraryTemplate?.type || libraryTemplate?.sport || 'corrida',
     description: workout?.description || libraryTemplate?.description || '',
     notes:       workout?.notes || libraryTemplate?.notes || '',
     blocks:      resolveBlocks(),
@@ -905,8 +908,15 @@ export default function WorkoutForm({ onClose, workout, cycleId, variantId, week
     const workoutToSave = form.type === 'descanso'
       ? { ...form, blocks: [] }
       : form;
-    dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId, variantId, weekId, workout: workoutToSave } });
-    onClose();
+    if (onSave) {
+      // Modo prescrição: delega o salvamento ao chamador
+      onSave(workoutToSave);
+      onClose();
+    } else {
+      // Modo ciclo: salva no AppContext
+      dispatch({ type: 'UPSERT_WORKOUT', payload: { cycleId, variantId, weekId, workout: workoutToSave } });
+      onClose();
+    }
   }
 
   const effectiveBlocks = form.type === 'descanso' ? [] : form.blocks;
@@ -965,10 +975,21 @@ export default function WorkoutForm({ onClose, workout, cycleId, variantId, week
                 </div>
               )}
               <div className="ml-auto flex items-center gap-2">
-                <select value={form.dayOfWeek} onChange={e => set('dayOfWeek', parseInt(e.target.value))}
-                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#001F3F]/20 bg-white">
-                  {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
-                </select>
+                {prescriptionDate ? (
+                  // Modo prescrição: mostra a data fixada
+                  <span className="text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1.5 rounded-lg">
+                    {(() => {
+                      const d = new Date(prescriptionDate + 'T12:00:00');
+                      return d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' });
+                    })()}
+                  </span>
+                ) : (
+                  // Modo ciclo: seletor de dia da semana
+                  <select value={form.dayOfWeek} onChange={e => set('dayOfWeek', parseInt(e.target.value))}
+                    className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#001F3F]/20 bg-white">
+                    {DAY_NAMES.map((d, i) => <option key={i} value={i}>{d}</option>)}
+                  </select>
+                )}
                 <div className="flex rounded-lg overflow-hidden border border-slate-200">
                   {[{ value: 'manha', label: '🌅' }, { value: 'tarde', label: '☀️' }, { value: 'noite', label: '🌙' }].map(p => (
                     <button key={p.value} type="button" onClick={() => set('period', p.value)}
@@ -1107,6 +1128,13 @@ export default function WorkoutForm({ onClose, workout, cycleId, variantId, week
 
           {/* ── Footer ───────────────────────────────────────────────────── */}
           <div className="px-6 py-4 border-t border-slate-100 flex items-center gap-3 flex-shrink-0">
+            {/* Botão remover — só em modo prescrição com workout existente */}
+            {onDelete && isEditing && (
+              <button type="button" onClick={onDelete}
+                className="text-xs text-red-500 hover:text-red-700 border border-red-200 hover:bg-red-50 px-3 py-2 rounded-lg transition-colors font-bold">
+                🗑 Remover
+              </button>
+            )}
             <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
             {effectiveBlocks.length > 0 && form.title && (
               <button type="button" onClick={() => downloadFIT(form, state.zoneConfig)}
@@ -1116,7 +1144,10 @@ export default function WorkoutForm({ onClose, workout, cycleId, variantId, week
               </button>
             )}
             <button type="submit" className="btn-primary flex-1">
-              {isEditing ? 'Salvar Sessão' : totalDist > 0 ? `+ Adicionar — ${totalDist.toFixed(2)} km` : '+ Adicionar Sessão'}
+              {onSave
+                ? (isEditing ? 'Salvar Prescrição' : 'Prescrever Treino')
+                : (isEditing ? 'Salvar Sessão' : totalDist > 0 ? `+ Adicionar — ${totalDist.toFixed(2)} km` : '+ Adicionar Sessão')
+              }
             </button>
           </div>
         </form>
