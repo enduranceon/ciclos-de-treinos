@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../context/AuthContext';
 import { useApp } from '../context/AppContext';
@@ -306,9 +306,10 @@ function CalWorkoutCard({ w, completed, onClick }) {
   return (
     <button onClick={e=>{ e.stopPropagation(); onClick(w); }}
       draggable={false}
-      className="w-full text-left rounded mb-0.5 hover:brightness-95 transition-all overflow-hidden"
+      // pointer-events-none nos filhos evita que interceptem eventos de drag do pai
+      className="w-full text-left rounded mb-0.5 hover:brightness-95 transition-all overflow-hidden pointer-events-auto"
       style={{ backgroundColor: completed ? '#F0FDF4' : s.bg, borderLeft: `3px solid ${s.color}` }}>
-      <div className="px-1.5 py-1">
+      <div className="px-1.5 py-1 pointer-events-none">
         <div className="text-[10px] font-black truncate" style={{ color: s.color }}>{w.title}</div>
         <div className="flex items-center gap-1 mt-0.5">
           {w.estimated_duration_min && (
@@ -337,12 +338,12 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
   const [athlete,    setAthlete]    = useState(null);
   const [prescribed, setPrescribed] = useState([]);
   const [completed,  setCompleted]  = useState([]);
-  const [loading, setLoading]       = useState(true);
-  const [modal, setModal]           = useState(null);
-  const [dragOver, setDragOver]     = useState(null);   // ISO date being dragged over
-  const [selectedLib, setSelectedLib] = useState(null); // workout selecionado na biblioteca
+  const [loading, setLoading]         = useState(true);
+  const [modal, setModal]             = useState(null);
+  const [dragOver, setDragOver]       = useState(null);
+  const [selectedLib, setSelectedLib] = useState(null);
   const [showLib, setShowLib]         = useState(true);
-  const dragWorkout = useRef(null);
+  const [dropError, setDropError]     = useState('');
 
   const grid      = getMonthGrid(year, month);
   const gridStart = grid[0][0];
@@ -392,29 +393,50 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
   }
 
   // ── Drag & Drop ──────────────────────────────────────────────────────────────
+  // Usa dataTransfer JSON como fonte de verdade (mais confiável que useRef entre componentes)
   function handleDragStart(e, workout) {
-    dragWorkout.current = workout;
     e.dataTransfer.effectAllowed = 'copy';
-    e.dataTransfer.setData('text/plain', workout.id);
+    // Serializa o treino completo no dataTransfer
+    e.dataTransfer.setData('application/json', JSON.stringify(workout));
+    e.dataTransfer.setData('text/plain', workout.id); // fallback
   }
 
   function handleDragOver(e, iso) {
     e.preventDefault();
+    e.stopPropagation();
     e.dataTransfer.dropEffect = 'copy';
-    setDragOver(iso);
+    if (dragOver !== iso) setDragOver(iso);
   }
 
-  function handleDragLeave() { setDragOver(null); }
+  function handleDragLeave(e) {
+    // Só limpa se saiu do elemento pai (não de filhos)
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      setDragOver(null);
+    }
+  }
 
   async function handleDrop(e, iso) {
     e.preventDefault();
+    e.stopPropagation();
     setDragOver(null);
-    const w = dragWorkout.current;
-    if (!w) return;
-    dragWorkout.current = null;
-    // Prescreve direto sem modal
+    setDropError('');
+
+    // Lê workout do dataTransfer
+    let w;
+    try {
+      const raw = e.dataTransfer.getData('application/json');
+      if (!raw) return;
+      w = JSON.parse(raw);
+    } catch (err) {
+      setDropError('Erro ao ler dados do treino');
+      return;
+    }
+
+    if (!w?.title) return;
+
     const dur  = w.estimated_duration_min ?? calcDuration(w.blocks);
     const dist = w.estimated_distance_km  ?? parseFloat(calcWorkoutDistance(w).toFixed(2));
+
     const { error } = await supabase.from('prescribed_workout').insert({
       athlete_id:             athleteId,
       coach_id:               coachId,
@@ -426,7 +448,12 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
       estimated_distance_km:  dist || null,
       blocks:                 w.blocks || [],
     });
-    if (!error) load();
+
+    if (error) {
+      setDropError(`Erro ao prescrever: ${error.message}`);
+    } else {
+      load();
+    }
   }
 
   // Clique num dia com treino selecionado da biblioteca → prescreve
@@ -524,8 +551,17 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
             ))}
           </div>
 
-          {/* Semanas */}
-          <div className="flex-1 overflow-y-auto">
+          {/* Erro de drop */}
+          {dropError && (
+            <div className="mx-3 mt-2 bg-red-50 border border-red-200 text-red-600 text-xs rounded-lg px-3 py-2 flex items-center justify-between">
+              <span>{dropError}</span>
+              <button onClick={() => setDropError('')} className="ml-2 font-bold">×</button>
+            </div>
+          )}
+
+        {/* Semanas */}
+          <div className="flex-1 overflow-y-auto"
+            onDragOver={e => e.preventDefault()}>
             {loading ? (
               <div className="flex items-center justify-center py-20 text-slate-400 text-sm">Carregando…</div>
             ) : (
