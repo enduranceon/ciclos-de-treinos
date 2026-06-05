@@ -5,7 +5,6 @@ import { SPORT_ICONS } from '../utils/helpers';
 const NAV_TABS = [
   { view: 'cycles',   label: 'Ciclos',   icon: '📋', action: 'GO_CYCLES'   },
   { view: 'team',     label: 'Meu Time', icon: '🏃', action: 'GO_TEAM'     },
-  { view: 'athletes', label: 'Atletas',  icon: '👤', action: 'GO_ATHLETES' },
   { view: 'studio',   label: 'Studio',   icon: '✨', action: 'GO_STUDIO'   },
   { view: 'lab',      label: 'Lab',      icon: '⚗️', action: 'GO_LAB'      },
   { view: 'settings', label: 'Config.',  icon: '⚙️', action: 'GO_SETTINGS' },
