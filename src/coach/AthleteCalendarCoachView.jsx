@@ -8,6 +8,11 @@ import {
   ZONE_COLORS, DEFAULT_ZONE_CONFIG,
 } from '../utils/helpers';
 
+// ── Ponte de dados D&D (nível de módulo — independente do ciclo de render React)
+// dataTransfer.getData() pode ser esvaziado em alguns browsers antes do drop.
+// Uma variável de módulo é 100% confiável.
+let _activeDrag = null;
+
 // ── Visuais ────────────────────────────────────────────────────────────────────
 const SPORT = {
   corrida:  { color: '#3B82F6', bg: '#EFF6FF', label: 'Corrida',  icon: '🏃' },
@@ -129,7 +134,11 @@ function LibraryPanel({ zoneConfig, onDragStart, selectedWorkout, onSelect }) {
           return (
             <div key={w.id}
               draggable
-              onDragStart={e => onDragStart(e, w)}
+              onDragStart={e => {
+                _activeDrag = w;          // ponte confiável entre componentes
+                onDragStart(e, w);        // notifica o pai (para visuais)
+              }}
+              onDragEnd={() => { _activeDrag = null; }}
               onClick={() => onSelect(isSelected ? null : w)}
               className={`
                 p-2 rounded-lg cursor-grab active:cursor-grabbing border transition-all select-none
@@ -287,21 +296,17 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
     setDragOver(null);
     setDropError('');
 
-    // Lê workout do dataTransfer
-    let w;
-    try {
-      const raw = e.dataTransfer.getData('application/json');
-      if (!raw) return;
-      w = JSON.parse(raw);
-    } catch (err) {
-      setDropError('Erro ao ler dados do treino');
+    // Lê da variável de módulo (_activeDrag) — 100% confiável entre componentes
+    const w = _activeDrag;
+    _activeDrag = null;
+
+    if (!w?.title) {
+      setDropError('Nenhum treino detectado no drop. Tente novamente.');
       return;
     }
 
-    if (!w?.title) return;
-
-    const dur  = w.estimated_duration_min ?? calcDuration(w.blocks);
-    const dist = w.estimated_distance_km  ?? parseFloat(calcWorkoutDistance(w).toFixed(2));
+    const dur  = w.estimated_duration_min != null ? w.estimated_duration_min : calcDuration(w.blocks);
+    const dist = w.estimated_distance_km  != null ? w.estimated_distance_km  : parseFloat(calcWorkoutDistance(w).toFixed(2));
 
     const { error } = await supabase.from('prescribed_workout').insert({
       athlete_id:             athleteId,
@@ -316,7 +321,7 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
     });
 
     if (error) {
-      setDropError(`Erro ao prescrever: ${error.message}`);
+      setDropError(`Erro ao salvar: ${error.message}`);
     } else {
       load();
     }
