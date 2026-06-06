@@ -154,6 +154,8 @@ export default function TeamView() {
     return (
       <AthleteCalendarCoachView
         athleteId={selectedAthleteId}
+        athletes={athletes}
+        onSelectAthlete={setSelectedAthleteId}
         onBack={() => setSelectedAthleteId(null)}
       />
     );

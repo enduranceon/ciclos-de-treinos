@@ -77,6 +77,45 @@ function ZoneBar({ blocks, zoneConfig }) {
   );
 }
 
+// ── Painel de Atletas ──────────────────────────────────────────────────────────
+function AthletesPanel({ athletes, currentAthleteId, onSelect }) {
+  return (
+    <div className="w-64 flex-shrink-0 flex flex-col bg-white border-r border-slate-100 overflow-hidden">
+      <div className="px-3 pt-3 pb-2 border-b border-slate-100 flex-shrink-0">
+        <h3 className="text-xs font-black text-[#001F3F] uppercase tracking-widest">
+          Meu Time
+        </h3>
+        <p className="text-[10px] text-slate-400 mt-0.5">Clique para trocar de atleta</p>
+      </div>
+      <div className="flex-1 overflow-y-auto py-1">
+        {athletes.map(({ athlete_id, athlete }) => {
+          const isActive = athlete_id === currentAthleteId;
+          const initials = (athlete?.full_name || '?').trim().split(' ').map(n => n[0]).slice(0,2).join('').toUpperCase();
+          return (
+            <button key={athlete_id}
+              onClick={() => onSelect(athlete_id)}
+              className={`w-full text-left px-3 py-2.5 flex items-center gap-2.5 transition-colors ${
+                isActive
+                  ? 'bg-[#001F3F] text-white'
+                  : 'hover:bg-slate-50 text-slate-700'
+              }`}>
+              <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-black flex-shrink-0 ${
+                isActive ? 'bg-white/20 text-white' : 'bg-[#001F3F]/10 text-[#001F3F]'
+              }`}>
+                {initials}
+              </div>
+              <span className="text-sm font-bold truncate">
+                {athlete?.full_name || 'Sem nome'}
+              </span>
+              {isActive && <span className="ml-auto text-blue-300 text-xs">●</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ── Painel Biblioteca ──────────────────────────────────────────────────────────
 function LibraryPanel({ zoneConfig, onDragStart, selectedWorkout, onSelect }) {
   const { state } = useApp();
@@ -91,12 +130,9 @@ function LibraryPanel({ zoneConfig, onDragStart, selectedWorkout, onSelect }) {
   });
 
   return (
-    <div className="w-64 flex-shrink-0 flex flex-col bg-white border-r border-slate-100 overflow-hidden">
-      {/* Header */}
-      <div className="px-3 pt-3 pb-2 border-b border-slate-100 flex-shrink-0">
-        <h3 className="text-xs font-black text-[#001F3F] uppercase tracking-widest mb-2">
-          Biblioteca
-        </h3>
+    <>
+      {/* Filtros */}
+      <div className="px-3 pt-2 pb-2 border-b border-slate-100 flex-shrink-0">
         <input
           value={search} onChange={e => setSearch(e.target.value)}
           placeholder="Buscar…"
@@ -109,7 +145,7 @@ function LibraryPanel({ zoneConfig, onDragStart, selectedWorkout, onSelect }) {
         </select>
         {library.length > 0 && (
           <p className="text-[9px] text-slate-400 mt-1.5 text-center">
-            Arraste um treino até o dia do calendário
+            Arraste até o dia — ou clique para selecionar
           </p>
         )}
       </div>
@@ -172,7 +208,7 @@ function LibraryPanel({ zoneConfig, onDragStart, selectedWorkout, onSelect }) {
           );
         })}
       </div>
-    </div>
+    </>
   );
 }
 
@@ -205,7 +241,7 @@ function CalWorkoutCard({ w, completed, onClick }) {
 }
 
 // ── Calendário mensal ──────────────────────────────────────────────────────────
-export default function AthleteCalendarCoachView({ athleteId, onBack }) {
+export default function AthleteCalendarCoachView({ athleteId, athletes = [], onSelectAthlete, onBack }) {
   const { session }  = useAuth();
   const { state }    = useApp();
   const coachId      = session?.user?.id;
@@ -220,6 +256,7 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
   const [modal, setModal]             = useState(null);
   const [selectedLib, setSelectedLib] = useState(null);
   const [showLib, setShowLib]         = useState(true);
+  const [sidebarTab, setSidebarTab]   = useState('library'); // 'library' | 'athletes'
   const [dropError, setDropError]     = useState('');
 
   const grid      = getMonthGrid(year, month);
@@ -432,14 +469,53 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
       {/* Corpo: biblioteca + calendário */}
       <div className="flex flex-1 min-h-0 gap-3">
 
-        {/* Biblioteca lateral */}
+        {/* Sidebar: Biblioteca + Atletas */}
         {showLib && (
-          <LibraryPanel
-            zoneConfig={state.zoneConfig}
-            onDragStart={handleDragStart}
-            selectedWorkout={selectedLib}
-            onSelect={setSelectedLib}
-          />
+          <div className="w-64 flex-shrink-0 flex flex-col bg-white border-r border-slate-100 overflow-hidden">
+            {/* Toggle tabs */}
+            <div className="flex border-b border-slate-100 flex-shrink-0">
+              <button
+                onClick={() => setSidebarTab('library')}
+                className={`flex-1 py-2 text-[11px] font-black uppercase tracking-widest transition-colors ${
+                  sidebarTab === 'library'
+                    ? 'text-[#001F3F] border-b-2 border-[#001F3F]'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}>
+                📚 Biblioteca
+              </button>
+              {athletes.length > 0 && (
+                <button
+                  onClick={() => setSidebarTab('athletes')}
+                  className={`flex-1 py-2 text-[11px] font-black uppercase tracking-widest transition-colors ${
+                    sidebarTab === 'athletes'
+                      ? 'text-[#001F3F] border-b-2 border-[#001F3F]'
+                      : 'text-slate-400 hover:text-slate-600'
+                  }`}>
+                  👥 Atletas
+                </button>
+              )}
+            </div>
+
+            {/* Conteúdo da aba */}
+            {sidebarTab === 'library' ? (
+              <LibraryPanel
+                zoneConfig={state.zoneConfig}
+                onDragStart={handleDragStart}
+                selectedWorkout={selectedLib}
+                onSelect={setSelectedLib}
+                embedded
+              />
+            ) : (
+              <AthletesPanel
+                athletes={athletes}
+                currentAthleteId={athleteId}
+                onSelect={id => {
+                  if (onSelectAthlete) onSelectAthlete(id);
+                  setSidebarTab('library'); // volta pra biblioteca ao trocar
+                }}
+              />
+            )}
+          </div>
         )}
 
         {/* Calendário */}
