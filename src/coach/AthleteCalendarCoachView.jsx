@@ -483,17 +483,15 @@ export default function AthleteCalendarCoachView({ athleteId, athletes = [], onS
                 }`}>
                 📚 Biblioteca
               </button>
-              {athletes.length > 0 && (
-                <button
-                  onClick={() => setSidebarTab('athletes')}
-                  className={`flex-1 py-2 text-[11px] font-black uppercase tracking-widest transition-colors ${
-                    sidebarTab === 'athletes'
-                      ? 'text-[#001F3F] border-b-2 border-[#001F3F]'
-                      : 'text-slate-400 hover:text-slate-600'
-                  }`}>
-                  👥 Atletas
-                </button>
-              )}
+              <button
+                onClick={() => setSidebarTab('athletes')}
+                className={`flex-1 py-2 text-[11px] font-black uppercase tracking-widest transition-colors ${
+                  sidebarTab === 'athletes'
+                    ? 'text-[#001F3F] border-b-2 border-[#001F3F]'
+                    : 'text-slate-400 hover:text-slate-600'
+                }`}>
+                👥 Atletas {athletes.length > 0 ? `(${athletes.length})` : ''}
+              </button>
             </div>
 
             {/* Conteúdo da aba */}
