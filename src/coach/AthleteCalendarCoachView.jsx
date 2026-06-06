@@ -214,27 +214,91 @@ function LibraryPanel({ zoneConfig, onDragStart, selectedWorkout, onSelect }) {
 
 // PrescribeModal removido — usa WorkoutForm completo (ver abaixo)
 
+// Zonas em ordem crescente de intensidade (barras sobem da esquerda pra direita)
+const ZONE_BARS = ['z0','z1','z2','z3','z4','z5','z6'];
+// Altura base crescente por intensidade (Z0 mais baixo, Z6 mais alto)
+const ZONE_BAR_HEIGHT = { z0:2, z1:4, z2:6, z3:8, z4:11, z5:14, z6:16 };
+// Cores neutras/sóbrias para as barras (tons de cinza azulado)
+const ZONE_BAR_COLOR  = { z0:'#CBD5E1', z1:'#94A3B8', z2:'#64748B', z3:'#475569',
+                           z4:'#334155', z5:'#1E293B', z6:'#0F172A' };
+
+// Mini gráfico de barras de zona — barras crescem com a intensidade
+function ZoneBars({ blocks, zoneConfig }) {
+  const cfg = zoneConfig || DEFAULT_ZONE_CONFIG;
+  const zones = calcWorkoutZones({ blocks: blocks || [] }, cfg);
+  const vals  = ZONE_BARS.map(z => zones[z] || 0);
+  const total = vals.reduce((s, v) => s + v, 0);
+  if (total < 0.01) return null;
+
+  return (
+    <div className="flex items-end gap-px mt-1.5" style={{ height: '16px' }}>
+      {ZONE_BARS.map((z, i) => {
+        const km  = zones[z] || 0;
+        if (km < 0.01) return null;
+        const pct = km / total; // proporção de volume nessa zona
+        // Altura = altura base da zona * raiz da proporção (barras maiores p/ zonas dominantes)
+        const h = Math.max(2, Math.round(ZONE_BAR_HEIGHT[z] * Math.sqrt(pct) * 2.5));
+        return (
+          <div key={z}
+            style={{
+              height: `${h}px`,
+              width:  '4px',
+              backgroundColor: ZONE_BAR_COLOR[z],
+              borderRadius: '1px',
+              flexShrink: 0,
+            }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 // ── Card de treino no calendário ───────────────────────────────────────────────
-function CalWorkoutCard({ w, completed, onClick }) {
+function CalWorkoutCard({ w, completed, onClick, zoneConfig }) {
   const s = SPORT[w.sport] || SPORT.corrida;
+  // Primeiras 2 linhas da descrição
+  const descSnippet = w.description
+    ? w.description.split('\n').slice(0, 2).join(' · ').slice(0, 60)
+    : null;
+
   return (
     <button onClick={e=>{ e.stopPropagation(); onClick(w); }}
       draggable={false}
-      // pointer-events-none nos filhos evita que interceptem eventos de drag do pai
-      className="w-full text-left rounded mb-0.5 hover:brightness-95 transition-all overflow-hidden pointer-events-auto"
-      style={{ backgroundColor: completed ? '#F0FDF4' : s.bg, borderLeft: `3px solid ${s.color}` }}>
+      className="w-full text-left rounded mb-0.5 transition-all overflow-hidden pointer-events-auto group/card hover:shadow-sm"
+      style={{
+        backgroundColor: completed ? '#F8FAF8' : '#FAFAFA',
+        borderLeft: `2px solid ${s.color}`,
+        border: completed ? `1px solid #D1FAE5` : `1px solid #E2E8F0`,
+        borderLeftWidth: '3px',
+        borderLeftColor: s.color,
+      }}>
       <div className="px-1.5 py-1 pointer-events-none">
-        <div className="text-[10px] font-black truncate" style={{ color: s.color }}>{w.title}</div>
+        {/* Título */}
+        <div className="text-[10px] font-bold truncate text-slate-700 leading-tight">
+          {completed && <span className="text-green-500 mr-0.5">✓</span>}
+          {w.title}
+        </div>
+        {/* Duração + distância */}
         <div className="flex items-center gap-1 mt-0.5">
-          {w.estimated_duration_min && (
+          {w.estimated_duration_min > 0 && (
             <span className="text-[9px] text-slate-500 font-mono">{fmtDuration(w.estimated_duration_min)}</span>
           )}
-          {w.estimated_duration_min && w.estimated_distance_km && <span className="text-[8px] text-slate-300">·</span>}
-          {w.estimated_distance_km && (
+          {w.estimated_duration_min > 0 && w.estimated_distance_km > 0 && (
+            <span className="text-[8px] text-slate-300">·</span>
+          )}
+          {w.estimated_distance_km > 0 && (
             <span className="text-[9px] text-slate-500 font-mono">{w.estimated_distance_km}km</span>
           )}
-          {completed && <span className="ml-auto text-green-500 text-[9px] font-black">✓</span>}
         </div>
+        {/* Descrição snippet */}
+        {descSnippet && (
+          <div className="text-[9px] text-slate-400 mt-0.5 truncate leading-tight">{descSnippet}</div>
+        )}
+        {/* Barras de zona */}
+        {w.blocks?.length > 0 && (
+          <ZoneBars blocks={w.blocks} zoneConfig={zoneConfig} />
+        )}
       </div>
     </button>
   );
@@ -604,6 +668,7 @@ export default function AthleteCalendarCoachView({ athleteId, athletes = [], onS
                           {dayWorkouts.map(w => (
                             <CalWorkoutCard key={w.id} w={w}
                               completed={isCompleted(w.id)}
+                              zoneConfig={state.zoneConfig}
                               onClick={wk => { setSelectedLib(null); setModal({date:iso,workout:wk}); }} />
                           ))}
                         </div>

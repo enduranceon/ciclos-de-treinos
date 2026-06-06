@@ -383,23 +383,23 @@ export const SECTION_LABELS = {
 };
 
 export const SECTION_COLORS = {
-  aquecimento:      '#FB923C',
-  ativacao:         '#EF4444',
-  estimulos:        '#EF4444',   // legacy alias
-  strides:          '#10B981',
-  transicao:        '#60A5FA',
-  serie_principal:  '#A78BFA',
-  volta_calma:      '#94A3B8',
+  aquecimento:      '#64748B',   // cinza-azulado médio (warmup)
+  ativacao:         '#475569',   // cinza-azulado escuro (ativação)
+  estimulos:        '#475569',   // legacy alias
+  strides:          '#334155',   // quase navy (strides)
+  transicao:        '#94A3B8',   // cinza claro (transição)
+  serie_principal:  '#001F3F',   // navy profundo (série principal — destaque)
+  volta_calma:      '#CBD5E1',   // cinza muito claro (volta calma)
 };
 
 export const SECTION_ICONS = {
-  aquecimento:      '🔥',
-  ativacao:         '⚡',
-  estimulos:        '⚡',   // legacy alias
-  strides:          '💨',
-  transicao:        '〰️',
-  serie_principal:  '🎯',
-  volta_calma:      '❄️',
+  aquecimento:      '↑',
+  ativacao:         '◆',
+  estimulos:        '◆',   // legacy alias
+  strides:          '▷',
+  transicao:        '→',
+  serie_principal:  '■',
+  volta_calma:      '↓',
 };
 
 // Create a new section with sensible default sub-block

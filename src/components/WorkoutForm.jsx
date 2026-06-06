@@ -34,8 +34,8 @@ const SECTION_META = Object.fromEntries(SECTION_TYPES.map(s => [s.value, s]));
 // Level-2: sub-block types (no warmup/cooldown/transition — those are now sections)
 const SUB_BLOCK_TYPES = [
   { value: 'continuous', label: 'Contínuo',                color: '#2563EB' },
-  { value: 'interval',   label: 'Intervalado',             color: '#EF4444' },
-  { value: 'variation',  label: 'Variação de Intensidade', color: '#A78BFA' },
+  { value: 'interval',   label: 'Intervalado',             color: '#334155' },
+  { value: 'variation',  label: 'Variação de Intensidade', color: '#475569' },
   { value: 'stimulus',   label: 'Estímulo',                color: '#F59E0B' },
   { value: 'ramp',       label: 'Rampa',                   color: '#34D399' },
 ];
@@ -43,14 +43,14 @@ const SUB_BLOCK_META = Object.fromEntries(SUB_BLOCK_TYPES.map(b => [b.value, b])
 
 // Legacy block colors (for chart backward compat)
 const BLOCK_COLORS = {
-  warmup:     '#FB923C',
-  continuous: '#2563EB',
-  interval:   '#EF4444',
-  transition: '#60A5FA',
-  variation:  '#A78BFA',
-  stimulus:   '#F59E0B',
-  cooldown:   '#94A3B8',
-  ramp:       '#34D399',
+  warmup:     '#64748B',
+  continuous: '#334155',
+  interval:   '#001F3F',
+  transition: '#94A3B8',
+  variation:  '#475569',
+  stimulus:   '#1E293B',
+  cooldown:   '#CBD5E1',
+  ramp:       '#475569',
 };
 
 const ZONES = ['trote','z0','z1','z2','z3','z4','z5','z6'];
