@@ -156,7 +156,7 @@ function LibraryPanel({ zoneConfig, onDragStart, selectedWorkout, onSelect }) {
                   style={{ backgroundColor: sp.color, minHeight: '28px' }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-[11px] font-bold text-[#001F3F] leading-tight line-clamp-2">
-                    {w.title}
+                    {w.title || w.name || '(sem título)'}
                   </p>
                   <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
                     <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: sp.color }}>
@@ -298,11 +298,13 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
     const w = _activeDrag;
     _activeDrag = null;
 
-    if (!w?.title) {
+    if (!w) {
       setDropError('Nenhum treino detectado no drop. Tente novamente.');
       return;
     }
 
+    // Compatível com `name` (formato antigo da biblioteca) e `title` (novo)
+    const workoutTitle = w.title || w.name || 'Treino';
     const dur  = w.estimated_duration_min != null ? w.estimated_duration_min : calcDuration(w.blocks);
     const dist = w.estimated_distance_km  != null ? w.estimated_distance_km  : parseFloat(calcWorkoutDistance(w).toFixed(2));
 
@@ -311,7 +313,7 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
       coach_id:               coachId,
       scheduled_date:         iso,
       sport:                  w.type || w.sport || 'corrida',
-      title:                  w.title,
+      title:                  workoutTitle,
       description:            w.description || null,
       estimated_duration_min: dur  || null,
       estimated_distance_km:  dist || null,
