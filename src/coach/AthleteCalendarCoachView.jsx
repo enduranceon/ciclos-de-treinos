@@ -138,7 +138,10 @@ function LibraryPanel({ zoneConfig, onDragStart, selectedWorkout, onSelect }) {
                 _activeDrag = w;          // ponte confiável entre componentes
                 onDragStart(e, w);        // notifica o pai (para visuais)
               }}
-              onDragEnd={() => { _activeDrag = null; }}
+              // onDragEnd intencionalmente omitido:
+              // re-renders do React durante o arrastar (setDragOver)
+              // podem disparar dragend prematuramente.
+              // _activeDrag é limpo pelo handleDrop ou sobrescrito no próximo drag.
               onClick={() => onSelect(isSelected ? null : w)}
               className={`
                 p-2 rounded-lg cursor-grab active:cursor-grabbing border transition-all select-none
@@ -215,7 +218,6 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
   const [completed,  setCompleted]  = useState([]);
   const [loading, setLoading]         = useState(true);
   const [modal, setModal]             = useState(null);
-  const [dragOver, setDragOver]       = useState(null);
   const [selectedLib, setSelectedLib] = useState(null);
   const [showLib, setShowLib]         = useState(true);
   const [dropError, setDropError]     = useState('');
@@ -278,22 +280,18 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
 
   function handleDragOver(e, iso) {
     e.preventDefault();
-    e.stopPropagation();
-    e.dataTransfer.dropEffect = 'copy';
-    if (dragOver !== iso) setDragOver(iso);
+    // NÃO chamar setDragOver aqui para evitar re-renders durante o arrastar
+    // que disparam onDragEnd prematuramente na fonte.
+    // O highlight visual é feito via CSS :hover ao invés de state.
   }
 
   function handleDragLeave(e) {
-    // Só limpa se saiu do elemento pai (não de filhos)
-    if (!e.currentTarget.contains(e.relatedTarget)) {
-      setDragOver(null);
-    }
+    // Visual via CSS :hover — sem state
   }
 
   async function handleDrop(e, iso) {
     e.preventDefault();
     e.stopPropagation();
-    setDragOver(null);
     setDropError('');
 
     // Lê da variável de módulo (_activeDrag) — 100% confiável entre componentes
@@ -486,27 +484,26 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
 
                     {/* Dias */}
                     {week.map(iso => {
-                      const dayWorkouts    = workoutsForDay(iso);
-                      const d              = parseISO(iso);
-                      const inMonth        = d.getMonth()===month;
-                      const todayFlag      = isToday(iso);
-                      const isDragTarget   = dragOver===iso;
-                      const hasSelection   = !!selectedLib;
+                      const dayWorkouts = workoutsForDay(iso);
+                      const d           = parseISO(iso);
+                      const inMonth     = d.getMonth() === month;
+                      const todayFlag   = isToday(iso);
+                      const hasSelection = !!selectedLib;
 
                       return (
                         <div key={iso}
                           onClick={() => handleDayClick(iso)}
-                          onDragOver={e => handleDragOver(e,iso)}
+                          onDragOver={e => handleDragOver(e, iso)}
                           onDragLeave={handleDragLeave}
-                          onDrop={e => handleDrop(e,iso)}
+                          onDrop={e => handleDrop(e, iso)}
                           className={`
                             border-r border-slate-100 last:border-r-0 p-1.5 relative group
                             transition-colors cursor-pointer
-                            ${isDragTarget  ? 'bg-blue-100 ring-2 ring-inset ring-blue-400' :
-                              hasSelection  ? 'hover:bg-blue-50/50' :
-                              todayFlag     ? 'bg-blue-50/50 hover:bg-blue-50' :
-                              inMonth       ? 'bg-white hover:bg-slate-50/60' :
-                                              'bg-slate-50/30 hover:bg-slate-50/50'}
+                            drop-target
+                            ${hasSelection ? 'hover:bg-blue-50/50' :
+                              todayFlag    ? 'bg-blue-50/50 hover:bg-blue-50' :
+                              inMonth      ? 'bg-white hover:bg-slate-50/60' :
+                                             'bg-slate-50/30 hover:bg-slate-50/50'}
                           `}>
 
                           {/* Número dia */}
@@ -526,13 +523,6 @@ export default function AthleteCalendarCoachView({ athleteId, onBack }) {
                               </button>
                             )}
                           </div>
-
-                          {/* Drop hint */}
-                          {isDragTarget && (
-                            <div className="absolute inset-x-1.5 bottom-1.5 rounded border-2 border-dashed border-blue-400 text-[9px] text-blue-500 font-bold text-center py-1">
-                              Soltar aqui
-                            </div>
-                          )}
 
                           {/* Treinos prescritos */}
                           {dayWorkouts.map(w => (

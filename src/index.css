@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* Highlight de drop via CSS puro — sem state React para não causar re-renders */
+.drop-target:dragover,
+.drop-target[data-drag-over] {
+  background-color: #DBEAFE !important;
+  outline: 2px dashed #60A5FA;
+  outline-offset: -2px;
+}
+
 body {
   margin: 0;
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
